@@ -1,5 +1,44 @@
 ## 📚 Implemented Patterns (분산 시스템 이야기)
 
+## 🏗️ Project Structure
+
+This project is organized as a multi-module Gradle project, with each chapter implemented as a separate submodule:
+
+1. **chapter1-data-replication**: Implementation of data replication patterns
+2. **chapter2-data-partitioning**: Implementation of data partitioning patterns (depends on chapter1)
+3. **chapter3-distributed-time**: Implementation of distributed time patterns (depends on chapter2)
+4. **chapter4-cluster-management**: Implementation of cluster management patterns (depends on chapter3)
+5. **chapter5-inter-node-communication**: Implementation of inter-node communication patterns (depends on chapter4)
+
+Each chapter builds upon the previous one, allowing for incremental learning and implementation.
+
+## 🚀 Getting Started
+
+### Prerequisites
+- JDK 11 or higher
+- Gradle 7.0 or higher
+
+### Building the Project
+```bash
+./gradlew build
+```
+
+### Running the Demo
+```bash
+./gradlew run
+```
+
+This will run the main application that demonstrates components from all chapters working together.
+
+### Running Individual Chapters
+```bash
+./gradlew :chapter1-data-replication:run
+./gradlew :chapter2-data-partitioning:run
+./gradlew :chapter3-distributed-time:run
+./gradlew :chapter4-cluster-management:run
+./gradlew :chapter5-inter-node-communication:run
+```
+
 ### ✅ 분산 시스템의 약속과 위험
 Exploring the trade-offs of availability, consistency, and partition tolerance based on the CAP theorem.
 
@@ -92,4 +131,3 @@ This project is organized around practical implementations of known distributed 
   Groups multiple requests into a single message to reduce overhead.
 - **요청 파이프라인 (Request Pipelining)**  
   Enables concurrent requests over the same connection without waiting.
-

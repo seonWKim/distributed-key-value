@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GradleSettings">
+    <option name="linkedExternalProjectsSettings">
+      <GradleProjectSettings>
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="gradleJvm" value="corretto-21" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/chapter1-data-replication" />
+            <option value="$PROJECT_DIR$/chapter2-data-partitioning" />
+            <option value="$PROJECT_DIR$/chapter3-distributed-time" />
+            <option value="$PROJECT_DIR$/chapter4-cluster-management" />
+            <option value="$PROJECT_DIR$/chapter5-inter-node-communication" />
+          </set>
+        </option>
+      </GradleProjectSettings>
+    </option>
+  </component>
+</project>
