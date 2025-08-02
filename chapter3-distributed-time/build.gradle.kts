@@ -4,7 +4,7 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":chapter2-data-partitioning"))
+    api(project(":chapter2-data-partitioning"))
     implementation(kotlin("stdlib"))
     testImplementation(kotlin("test"))
 }

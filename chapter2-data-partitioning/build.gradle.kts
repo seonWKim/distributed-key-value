@@ -4,7 +4,7 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":chapter1-data-replication"))
+    api(project(":chapter1-data-replication"))
     implementation(kotlin("stdlib"))
     testImplementation(kotlin("test"))
 }

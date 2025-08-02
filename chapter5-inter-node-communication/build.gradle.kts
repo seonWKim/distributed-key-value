@@ -4,7 +4,7 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":chapter4-cluster-management"))
+    api(project(":chapter4-cluster-management"))
     implementation(kotlin("stdlib"))
     testImplementation(kotlin("test"))
 }

@@ -4,7 +4,7 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":chapter3-distributed-time"))
+    api(project(":chapter3-distributed-time"))
     implementation(kotlin("stdlib"))
     testImplementation(kotlin("test"))
 }
