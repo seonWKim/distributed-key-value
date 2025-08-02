@@ -1,6 +1,6 @@
 package com.distributed.keyvalue.chapter1.consensus
 
-import com.distributed.keyvalue.chapter1.interfaces.store.LogEntry
+import com.distributed.keyvalue.chapter1.store.LogEntry
 
 /**
  * Interface for a RAFT consensus module.

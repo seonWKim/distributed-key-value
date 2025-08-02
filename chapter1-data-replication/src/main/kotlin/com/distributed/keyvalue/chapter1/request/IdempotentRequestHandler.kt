@@ -1,6 +1,6 @@
 package com.distributed.keyvalue.chapter1.request
 
-import com.distributed.keyvalue.chapter1.interfaces.response.Response
+import com.distributed.keyvalue.chapter1.response.Response
 
 /**
  * Request handling interfaces for the distributed key-value store.
