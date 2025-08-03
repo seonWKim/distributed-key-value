@@ -92,12 +92,7 @@ To build a specific chapter:
 
 ### Running a Chapter
 
-Each chapter can be run using the provided scripts in the `scripts` directory:
-
-```bash
-# For Chapter 1
-./scripts/chapter1.sh
-```
+Each chapter can be run using the provided scripts in the `scripts` directory 
 
 ## Learning Path
 
