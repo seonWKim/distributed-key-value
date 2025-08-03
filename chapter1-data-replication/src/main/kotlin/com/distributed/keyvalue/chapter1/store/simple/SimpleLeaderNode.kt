@@ -13,6 +13,7 @@ import com.distributed.keyvalue.chapter1.store.LeaderNode
 import com.distributed.keyvalue.chapter1.store.LogEntry
 import com.distributed.keyvalue.chapter1.store.NodeState
 import com.distributed.keyvalue.chapter1.store.WriteAheadLog
+import mu.KotlinLogging
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -29,21 +30,23 @@ class SimpleLeaderNode(
     private val keyValueStore: KeyValueStore,
     private val heartbeatIntervalMs: Long = 100
 ) : LeaderNode {
-    
+
+    private val log = KotlinLogging.logger { }
+
     override var currentTerm: Long = 0
         private set
-    
+
     override val state: NodeState = NodeState.LEADER
-    
+
     override val lowWatermark: Long
         get() = calculateLowWatermark()
-    
+
     override val highWatermark: Long
         get() = calculateHighWatermark()
 
     private val scheduler: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     private var running: Boolean = false
-    
+
     /**
      * Calculates the low watermark position in the log.
      * This is the position that has been replicated to all followers.
@@ -52,7 +55,7 @@ class SimpleLeaderNode(
         if (followers.isEmpty()) {
             return wal.getLastPosition()
         }
-        
+
         // Find the minimum log position across all followers
         return followers.minOfOrNull { follower ->
             // For simplicity, we assume each follower has a lastReplicatedIndex property
@@ -60,7 +63,7 @@ class SimpleLeaderNode(
             0L // Placeholder, would be follower.lastReplicatedIndex in a real implementation
         } ?: 0L
     }
-    
+
     /**
      * Calculates the high watermark position in the log.
      * This is the position that has been replicated to a quorum of nodes.
@@ -69,23 +72,23 @@ class SimpleLeaderNode(
         if (followers.isEmpty()) {
             return wal.getLastPosition()
         }
-        
+
         // Get all log positions, including this leader
         val positions = mutableListOf<Long>()
         positions.add(wal.getLastPosition())
-        
+
         // For simplicity, we assume each follower has a lastReplicatedIndex property
         // In a real implementation, we would track this information
         followers.forEach { follower ->
             positions.add(0L) // Placeholder, would be follower.lastReplicatedIndex in a real implementation
         }
-        
+
         // Sort positions and get the position at the quorum index
         positions.sort()
         val quorumIndex = positions.size / 2
         return positions[quorumIndex]
     }
-    
+
     override fun start() {
         if (!running) {
             running = true
@@ -98,7 +101,7 @@ class SimpleLeaderNode(
             )
         }
     }
-    
+
     override fun stop() {
         if (running) {
             running = false
@@ -113,10 +116,10 @@ class SimpleLeaderNode(
             }
         }
     }
-    
+
     override fun process(request: Request): CompletableFuture<Response> {
         val future = CompletableFuture<Response>()
-        
+
         try {
             // Parse request to SimpleRequestCommand
             val command = SimpleRequestCommand.from(request.command)
@@ -131,17 +134,28 @@ class SimpleLeaderNode(
                         metadata = emptyMap()
                     )
                     future.complete(result)
+                    log.info {
+                        "[SimpleLeaderNode] Handle GET Request(key = ${command.key.toString(Charsets.UTF_8)}, value = ${
+                            result.result?.toString(Charsets.UTF_8)})"
+                    }
                     return future
                 }
+
                 is SimpleRequestPutCommand -> {
                     result = keyValueStore.put(
                         key = command.key,
                         value = command.value,
                         version = emptyMap() // TODO
                     )
+                    log.info {
+                        "[SimpleLeaderNode] Handle PUT Request(key = ${command.key.toString(Charsets.UTF_8)}, value = ${
+                            command.value.toString(Charsets.UTF_8)})"
+                    }
                 }
+
                 is SimpleRequestDeleteCommand -> {
                     result = keyValueStore.delete(command.key)
+                    log.info { "[SimpleLeaderNode] Handle DELETE Request(key = ${command.key.toString(Charsets.UTF_8)})" }
                 }
             }
 
@@ -155,7 +169,7 @@ class SimpleLeaderNode(
 
             // Append to local log
             val position = wal.append(logEntry)
-            
+
             // Replicate to followers
             replicateLog(position).thenRun {
                 // Create a success response
@@ -190,10 +204,10 @@ class SimpleLeaderNode(
             )
             future.complete(response)
         }
-        
+
         return future
     }
-    
+
     override fun sendHeartbeats() {
         followers.forEach { follower ->
             try {
@@ -204,24 +218,24 @@ class SimpleLeaderNode(
             }
         }
     }
-    
+
     override fun replicateLog(fromPosition: Long): CompletableFuture<Void> {
         val future = CompletableFuture<Void>()
-        
+
         if (followers.isEmpty()) {
             future.complete(null)
             return future
         }
-        
+
         val entries = wal.read(fromPosition)
         if (entries.isEmpty()) {
             future.complete(null)
             return future
         }
-        
+
         val replicationFutures = followers.map { follower ->
             val followerFuture = CompletableFuture<Boolean>()
-            
+
             try {
                 // For simplicity, we assume the previous log entry is at fromPosition - 1
                 val prevLogIndex = fromPosition - 1
@@ -231,7 +245,7 @@ class SimpleLeaderNode(
                 } else {
                     0
                 }
-                
+
                 val success = follower.appendEntries(
                     term = currentTerm,
                     prevLogIndex = prevLogIndex,
@@ -239,17 +253,17 @@ class SimpleLeaderNode(
                     entries = entries,
                     leaderCommit = highWatermark
                 )
-                
+
                 followerFuture.complete(success)
             } catch (e: Exception) {
                 // Log error, but continue with other followers
                 println("Error replicating log to follower ${follower.id}: ${e.message}")
                 followerFuture.complete(false)
             }
-            
+
             followerFuture
         }
-        
+
         // Wait for a quorum of followers to replicate
         CompletableFuture.allOf(*replicationFutures.toTypedArray()).thenRun {
             val successCount = replicationFutures.count { it.get() }
@@ -259,7 +273,7 @@ class SimpleLeaderNode(
                 future.completeExceptionally(Exception("Failed to replicate to a quorum of followers"))
             }
         }
-        
+
         return future
     }
 }

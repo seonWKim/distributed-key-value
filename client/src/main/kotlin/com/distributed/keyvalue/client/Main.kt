@@ -27,7 +27,7 @@ fun main(args: Array<String>) {
 
     val arguments = parseArguments(args)
     val host = arguments["host"] ?: "localhost"
-    val port = arguments["port"]?.toIntOrNull() ?: 8080
+    val port = arguments["port"]?.toIntOrNull() ?: 20000
 
     log.info("Connecting to node at $host:$port")
 

@@ -6,6 +6,7 @@ import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestGetCommand
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.store.*
+import mu.KotlinLogging
 import java.util.concurrent.CompletableFuture
 
 /**
@@ -18,6 +19,8 @@ class SimpleFollowerNode(
     private val keyValueStore: KeyValueStore,
     private val electionTimeoutMs: Long = 1000
 ) : FollowerNode {
+
+    private val log = KotlinLogging.logger { }
 
     override var currentTerm: Long = 0
         private set
@@ -62,6 +65,10 @@ class SimpleFollowerNode(
                         metadata = emptyMap()
                     )
                     future.complete(result)
+                    log.info {
+                        "[SimpleFollowerNode] Handle GET Request(key = ${command.key.toString(Charsets.UTF_8)}, value = ${
+                            result.result?.toString(Charsets.UTF_8)})"
+                    }
                     return future
                 }
                 else -> {
@@ -72,6 +79,7 @@ class SimpleFollowerNode(
             // Followers should redirect write requests to the leader
             val currentLeader = leader
             if (currentLeader != null) {
+                log.info { "[SimpleFollowerNode] Redirect request to leader node"}
                 return currentLeader.process(request)
             }
             
