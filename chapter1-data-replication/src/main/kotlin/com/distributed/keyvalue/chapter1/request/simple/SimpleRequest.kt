@@ -47,18 +47,21 @@ sealed interface SimpleRequestCommand {
 
             return when (command[0].toInt()) {
                 0 -> {
-                    val key = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    val key = command.copyOfRange(1, command.size)
                     SimpleRequestGetCommand(key)
                 }
+
                 1 -> {
                     val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
                     val (key, value) = payload.split(":", limit = 2)
-                    SimpleRequestPutCommand(key, value.toByteArray(Charsets.UTF_8))
+                    SimpleRequestPutCommand(key.toByteArray(Charsets.UTF_8), value.toByteArray(Charsets.UTF_8))
                 }
+
                 2 -> {
-                    val key = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    val key = command.copyOfRange(1, command.size)
                     SimpleRequestDeleteCommand(key)
                 }
+
                 else -> throw IllegalArgumentException("Unknown command type: ${command[0]}")
             }
         }
@@ -66,11 +69,30 @@ sealed interface SimpleRequestCommand {
 }
 
 data class SimpleRequestGetCommand(
-    val key: String
-) : SimpleRequestCommand
+    val key: ByteArray
+) : SimpleRequestCommand {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as SimpleRequestGetCommand
+
+        if (!key.contentEquals(other.key)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return key.contentHashCode()
+    }
+
+    override fun toString(): String {
+        return "SimpleRequestGetCommand(key=${key.contentToString()})"
+    }
+}
 
 data class SimpleRequestPutCommand(
-    val key: String,
+    val key: ByteArray,
     val value: ByteArray
 ) : SimpleRequestCommand {
     override fun equals(other: Any?): Boolean {
@@ -79,19 +101,42 @@ data class SimpleRequestPutCommand(
 
         other as SimpleRequestPutCommand
 
-        if (key != other.key) return false
+        if (!key.contentEquals(other.key)) return false
         if (!value.contentEquals(other.value)) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        var result = key.hashCode()
+        var result = key.contentHashCode()
         result = 31 * result + value.contentHashCode()
         return result
+    }
+
+    override fun toString(): String {
+        return "SimpleRequestPutCommand(key=${key.contentToString()}, value=${value.contentToString()})"
     }
 }
 
 data class SimpleRequestDeleteCommand(
-    val key: String
-) : SimpleRequestCommand
+    val key: ByteArray
+) : SimpleRequestCommand {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as SimpleRequestDeleteCommand
+
+        if (!key.contentEquals(other.key)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return key.contentHashCode()
+    }
+
+    override fun toString(): String {
+        return "SimpleRequestDeleteCommand(key=${key.contentToString()})"
+    }
+}
