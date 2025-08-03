@@ -1,5 +1,7 @@
 package com.distributed.keyvalue.chapter1.store
 
+import com.distributed.keyvalue.chapter1.request.Request
+import com.distributed.keyvalue.chapter1.response.Response
 import java.util.concurrent.CompletableFuture
 
 /**
@@ -40,8 +42,8 @@ interface Node {
     /**
      * Processes a command from a client.
      *
-     * @param command The command to process
+     * @param request The request to process
      * @return A future that completes when the command is processed
      */
-    fun processCommand(command: ByteArray): CompletableFuture<ByteArray>
+    fun process(request: Request): CompletableFuture<Response>
 }
