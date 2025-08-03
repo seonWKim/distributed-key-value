@@ -79,31 +79,8 @@ class SimpleFollowerNode(
         val future = CompletableFuture<Response>()
 
         try {
-            // Parse request to SimpleRequestCommand
-            val command = SimpleRequestCommand.from(request.command)
-            when (command) {
-                // TODO: apply quorum based querying
-                is SimpleRequestGetCommand -> {
-                    val result = SimpleResponse(
-                        requestId = request.id,
-                        result = keyValueStore.get(command.key),
-                        success = true,
-                        errorMessage = null,
-                        metadata = emptyMap()
-                    )
-                    future.complete(result)
-                    log.info {
-                        "[SimpleFollowerNode] Handle GET Request(key = ${command.key.toString(Charsets.UTF_8)}, value = ${
-                            result.result?.toString(Charsets.UTF_8)})"
-                    }
-                    return future
-                }
-                else -> {
-                    // for PUT and DELETE, delegate to the leader
-                }
-            }
+            // TODO: handle GET request(quorum)
 
-            // Followers should redirect write requests to the leader
             val proxy = leaderProxy
             if (proxy != null) {
                 log.info { "[SimpleFollowerNode] Redirect request to leader node"}
