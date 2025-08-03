@@ -15,9 +15,6 @@ In this chapter, you'll gain hands-on understanding of:
 - ✅ **Generational and Lamport Clocks** for operation ordering
 - ✅ **Replicated Logs** and consistency guarantees
 - ✅ **RAFT Consensus Algorithm** fundamentals
-- ✅ **Request Pipeline and Batching** for efficient async communication
-- ✅ **Idempotency** in networked systems
-- ✅ **Versioning and Version Vectors** to track conflicts and causality
 
 ---
 
