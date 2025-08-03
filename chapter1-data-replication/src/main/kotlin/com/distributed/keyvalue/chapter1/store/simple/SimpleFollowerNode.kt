@@ -2,6 +2,9 @@ package com.distributed.keyvalue.chapter1.store.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestDeleteCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestGetCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestPutCommand
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.store.*
@@ -50,6 +53,23 @@ class SimpleFollowerNode(
         try {
             // Parse request to SimpleRequestCommand
             val command = SimpleRequestCommand.from(request.command)
+            when (command) {
+                // TODO: apply quorum based querying
+                is SimpleRequestGetCommand -> {
+                    val result = SimpleResponse(
+                        requestId = request.id,
+                        result = keyValueStore.get(command.key),
+                        success = true,
+                        errorMessage = null,
+                        metadata = emptyMap()
+                    )
+                    future.complete(result)
+                    return future
+                }
+                else -> {
+                    // for PUT and DELETE, delegate to the leader
+                }
+            }
 
             // Followers should redirect write requests to the leader
             val currentLeader = leader
@@ -60,7 +80,7 @@ class SimpleFollowerNode(
             // If there's no leader, return an error
             val response = SimpleResponse(
                 requestId = request.id,
-                result = ByteArray(0),
+                result = null,
                 success = false,
                 errorMessage = "No leader available",
                 metadata = emptyMap()
@@ -70,7 +90,7 @@ class SimpleFollowerNode(
             // Handle parsing errors
             val response = SimpleResponse(
                 requestId = request.id,
-                result = ByteArray(0),
+                result = null,
                 success = false,
                 errorMessage = "Error parsing command: ${e.message}",
                 metadata = emptyMap()
