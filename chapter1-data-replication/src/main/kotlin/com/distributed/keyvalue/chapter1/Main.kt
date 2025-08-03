@@ -167,7 +167,8 @@ fun createNode(arguments: Map<String, String>): Node {
             SimpleLeaderNode(
                 id = "$host:$port",
                 wal = wal,
-                followers = emptyList()
+                followers = emptyList(),
+                keyValueStore = SimpleInMemoryKeyValueStore()
             )
         }
 
@@ -181,6 +182,7 @@ fun createNode(arguments: Map<String, String>): Node {
             // For this simplified example, we'll just create a follower node and store the leader's address
             val followerNode = SimpleFollowerNode(
                 id = "$host:$port",
+                keyValueStore = SimpleInMemoryKeyValueStore(),
                 wal = wal
             )
 

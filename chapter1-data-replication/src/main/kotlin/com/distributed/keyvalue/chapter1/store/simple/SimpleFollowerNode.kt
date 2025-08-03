@@ -14,6 +14,7 @@ import java.util.concurrent.CompletableFuture
 class SimpleFollowerNode(
     override val id: String,
     override val wal: WriteAheadLog,
+    private val keyValueStore: KeyValueStore,
     private val electionTimeoutMs: Long = 1000
 ) : FollowerNode {
 

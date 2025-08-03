@@ -4,6 +4,7 @@ import com.distributed.keyvalue.chapter1.request.Request
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.store.FollowerNode
+import com.distributed.keyvalue.chapter1.store.KeyValueStore
 import com.distributed.keyvalue.chapter1.store.LeaderNode
 import com.distributed.keyvalue.chapter1.store.NodeState
 import com.distributed.keyvalue.chapter1.store.WriteAheadLog
@@ -20,6 +21,7 @@ class SimpleLeaderNode(
     override val id: String,
     override val wal: WriteAheadLog,
     override val followers: List<FollowerNode>,
+    private val keyValueStore: KeyValueStore,
     private val heartbeatIntervalMs: Long = 100
 ) : LeaderNode {
     
@@ -33,7 +35,7 @@ class SimpleLeaderNode(
     
     override val highWatermark: Long
         get() = calculateHighWatermark()
-    
+
     private val scheduler: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     private var running: Boolean = false
     
@@ -118,6 +120,9 @@ class SimpleLeaderNode(
                 data = request.command,
                 metadata = request.metadata
             )
+
+            // processes request
+
             
             // Append to local log
             val position = wal.append(logEntry)
