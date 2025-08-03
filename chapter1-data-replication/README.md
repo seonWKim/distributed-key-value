@@ -65,9 +65,6 @@ You will **implement and test** the following components and behaviors:
 - **Idempotent Operation Handling**  
   Prevent duplicate application of commands after retries.
 
-- **Request Pipelining & Batching**  
-  Enable multiple outstanding requests and batch them for better throughput.
-
 - **Version Vectors** and **LWW (Last Writer Wins)** conflict resolution.
 
 ---

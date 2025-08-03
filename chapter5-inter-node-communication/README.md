@@ -1,0 +1,2 @@
+- single TCP socket channel 
+- batched request 

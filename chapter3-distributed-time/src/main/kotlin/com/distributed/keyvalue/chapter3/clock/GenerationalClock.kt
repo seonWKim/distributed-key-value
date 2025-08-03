@@ -1,4 +1,4 @@
-package com.distributed.keyvalue.chapter1.clock
+package com.distributed.keyvalue.chapter3.clock
 
 /**
  * Interface for a Generational Clock.

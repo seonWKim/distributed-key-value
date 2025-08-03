@@ -1,0 +1,7 @@
+- data partitioning across the cluster 
+  - hash, range 
+  - partition mapping to cluster nodes(or shards) 
+  - coordinator 
+  - 2 phase commit if data has to be stored across nodes atomically 
+  - isolation levels 
+  - 
