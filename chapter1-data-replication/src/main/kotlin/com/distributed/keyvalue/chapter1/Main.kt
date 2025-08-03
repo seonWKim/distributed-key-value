@@ -1,5 +1,6 @@
 package com.distributed.keyvalue.chapter1
 
+import com.distributed.keyvalue.chapter1.request.Request
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequest
 import com.distributed.keyvalue.chapter1.store.FollowerNode
 import com.distributed.keyvalue.chapter1.store.LeaderNode
@@ -69,7 +70,7 @@ fun main(args: Array<String>) {
             }
 
             // Create a request from the input
-            val request = SimpleRequest(
+            val request: Request = SimpleRequest(
                 id = UUID.randomUUID().toString(),
                 command = input.toByteArray()
             )

@@ -6,6 +6,7 @@ import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.store.FollowerNode
 import com.distributed.keyvalue.chapter1.store.KeyValueStore
 import com.distributed.keyvalue.chapter1.store.LeaderNode
+import com.distributed.keyvalue.chapter1.store.LogEntry
 import com.distributed.keyvalue.chapter1.store.NodeState
 import com.distributed.keyvalue.chapter1.store.WriteAheadLog
 import java.util.concurrent.CompletableFuture
@@ -114,7 +115,7 @@ class SimpleLeaderNode(
         
         try {
             // Create a log entry from the request
-            val logEntry = SimpleLogEntry(
+            val logEntry: LogEntry = SimpleLogEntry(
                 id = wal.getLastPosition() + 1,
                 term = currentTerm,
                 data = request.command,
