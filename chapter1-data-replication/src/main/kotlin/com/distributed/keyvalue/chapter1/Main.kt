@@ -209,11 +209,12 @@ fun createNode(arguments: Map<String, String>): Node {
             val followerNode = SimpleFollowerNode(
                 id = "$host:$port",
                 keyValueStore = SimpleInMemoryKeyValueStore(),
-                wal = wal
+                wal = wal,
+                leaderHost = leaderHost,
+                leaderPort = leaderPort
             )
 
-            val leaderAddress = "$leaderHost:$leaderPort"
-            log.info("Stored leader address: $leaderAddress for future connection")
+            log.info("Follower node will connect to leader at $leaderHost:$leaderPort when started")
 
             followerNode
         }

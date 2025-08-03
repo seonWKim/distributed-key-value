@@ -17,6 +17,8 @@ class SimpleFollowerNode(
     override val id: String,
     override val wal: WriteAheadLog,
     private val keyValueStore: KeyValueStore,
+    private val leaderHost: String? = null,
+    private val leaderPort: Int? = null,
     private val electionTimeoutMs: Long = 1000
 ) : FollowerNode {
 
@@ -29,6 +31,9 @@ class SimpleFollowerNode(
     
     override var leader: LeaderNode? = null
     
+    // Direct reference to the leader proxy for forwarding requests
+    private var leaderProxy: SimpleLeaderNodeProxy? = null
+    
     override var lastHeartbeatTime: Long = System.currentTimeMillis()
     
     private var commitIndex: Long = 0
@@ -38,6 +43,21 @@ class SimpleFollowerNode(
         if (!running) {
             running = true
 
+            // Connect to the leader if host and port are provided
+            if (leaderHost != null && leaderPort != null) {
+                log.info("Connecting to leader at $leaderHost:$leaderPort")
+                val proxy = SimpleLeaderNodeProxy(
+                    leaderHost = leaderHost,
+                    leaderPort = leaderPort
+                )
+                proxy.start()
+                leaderProxy = proxy
+                // We keep leader as null since we're not using LeaderNode interface anymore
+                log.info("Connected to leader at $leaderHost:$leaderPort")
+            } else {
+                log.warn("No leader host/port provided, will not connect to leader")
+            }
+
             // TODO: In a real implementation, we would start a timer to check for election timeout and transition to CANDIDATE state if no heartbeat is received within the timeout
         }
     }
@@ -45,6 +65,13 @@ class SimpleFollowerNode(
     override fun stop() {
         if (running) {
             running = false
+            
+            // Stop the leader proxy if it exists
+            leaderProxy?.let {
+                log.info("Stopping connection to leader")
+                it.stop()
+                leaderProxy = null
+            }
         }
     }
     
@@ -77,13 +104,13 @@ class SimpleFollowerNode(
             }
 
             // Followers should redirect write requests to the leader
-            val currentLeader = leader
-            if (currentLeader != null) {
+            val proxy = leaderProxy
+            if (proxy != null) {
                 log.info { "[SimpleFollowerNode] Redirect request to leader node"}
-                return currentLeader.process(request)
+                return proxy.process(request)
             }
             
-            // If there's no leader, return an error
+            // If there's no leader proxy, return an error
             val response = SimpleResponse(
                 requestId = request.id,
                 result = null,
