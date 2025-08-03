@@ -2,9 +2,7 @@ package com.distributed.keyvalue.chapter1.store.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommand
-import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestDeleteCommand
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestGetCommand
-import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestPutCommand
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.store.*
