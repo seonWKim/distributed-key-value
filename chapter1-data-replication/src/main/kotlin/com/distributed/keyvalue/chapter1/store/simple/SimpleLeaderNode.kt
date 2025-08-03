@@ -121,9 +121,6 @@ class SimpleLeaderNode(
                 metadata = request.metadata
             )
 
-            // processes request
-
-            
             // Append to local log
             val position = wal.append(logEntry)
             
