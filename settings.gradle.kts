@@ -6,3 +6,5 @@ include("chapter2-data-partitioning")
 include("chapter3-distributed-time")
 include("chapter4-cluster-management")
 include("chapter5-inter-node-communication")
+
+include("client")
