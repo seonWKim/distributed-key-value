@@ -13,7 +13,7 @@ interface Response {
     /**
      * The result of the operation.
      */
-    val result: ByteArray
+    val result: ByteArray?
 
     /**
      * Whether the operation was successful.

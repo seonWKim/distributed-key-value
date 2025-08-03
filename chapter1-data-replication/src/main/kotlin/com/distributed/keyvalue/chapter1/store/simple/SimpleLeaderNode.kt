@@ -2,6 +2,9 @@ package com.distributed.keyvalue.chapter1.store.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestDeleteCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestGetCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestPutCommand
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.store.FollowerNode
@@ -117,6 +120,30 @@ class SimpleLeaderNode(
         try {
             // Parse request to SimpleRequestCommand
             val command = SimpleRequestCommand.from(request.command)
+            var result: ByteArray?
+            when (command) {
+                is SimpleRequestGetCommand -> {
+                    val result = SimpleResponse(
+                        requestId = request.id,
+                        result = keyValueStore.get(command.key),
+                        success = true,
+                        errorMessage = null,
+                        metadata = emptyMap()
+                    )
+                    future.complete(result)
+                    return future
+                }
+                is SimpleRequestPutCommand -> {
+                    result = keyValueStore.put(
+                        key = command.key,
+                        value = command.value,
+                        version = emptyMap() // TODO
+                    )
+                }
+                is SimpleRequestDeleteCommand -> {
+                    result = keyValueStore.delete(command.key)
+                }
+            }
 
             // Create a log entry from the request
             val logEntry: LogEntry = SimpleLogEntry(
@@ -134,7 +161,7 @@ class SimpleLeaderNode(
                 // Create a success response
                 val response = SimpleResponse(
                     requestId = request.id,
-                    result = ByteArray(0), // Placeholder, would be actual result in a real implementation
+                    result = result,
                     success = true,
                     errorMessage = null,
                     metadata = mapOf("position" to position.toString())
@@ -144,7 +171,7 @@ class SimpleLeaderNode(
                 // Create an error response
                 val response = SimpleResponse(
                     requestId = request.id,
-                    result = ByteArray(0),
+                    result = null,
                     success = false,
                     errorMessage = e.message,
                     metadata = emptyMap()
@@ -156,7 +183,7 @@ class SimpleLeaderNode(
             // Create an error response
             val response = SimpleResponse(
                 requestId = request.id,
-                result = ByteArray(0),
+                result = null,
                 success = false,
                 errorMessage = e.message,
                 metadata = emptyMap()

@@ -87,7 +87,7 @@ data class SimpleRequestGetCommand(
     }
 
     override fun toString(): String {
-        return "SimpleRequestGetCommand(key=${key.contentToString()})"
+        return "SimpleRequestGetCommand(key=${key.toString(Charsets.UTF_8)})"
     }
 }
 
@@ -114,7 +114,7 @@ data class SimpleRequestPutCommand(
     }
 
     override fun toString(): String {
-        return "SimpleRequestPutCommand(key=${key.contentToString()}, value=${value.contentToString()})"
+        return "SimpleRequestPutCommand(key=${key.toString(Charsets.UTF_8)}, value=${value.toString(Charsets.UTF_8)})"
     }
 }
 
@@ -137,6 +137,6 @@ data class SimpleRequestDeleteCommand(
     }
 
     override fun toString(): String {
-        return "SimpleRequestDeleteCommand(key=${key.contentToString()})"
+        return "SimpleRequestDeleteCommand(key=${key.toString(Charsets.UTF_8)})"
     }
 }

@@ -8,7 +8,7 @@ import com.distributed.keyvalue.chapter1.response.Response
  */
 data class SimpleResponse(
     override val requestId: String,
-    override val result: ByteArray,
+    override val result: ByteArray?,
     override val success: Boolean,
     override val errorMessage: String?,
     override val metadata: Map<String, String> = emptyMap()

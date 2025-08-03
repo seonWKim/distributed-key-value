@@ -122,7 +122,7 @@ fun main(args: Array<String>) {
 
             // Print the response
             if (response.success) {
-                log.info("Success: ${String(response.result)}")
+                log.info("Success: ${response.result?.toString(Charsets.UTF_8) ?: "null"}")
             } else {
                 log.info("Error: ${response.errorMessage}")
             }
