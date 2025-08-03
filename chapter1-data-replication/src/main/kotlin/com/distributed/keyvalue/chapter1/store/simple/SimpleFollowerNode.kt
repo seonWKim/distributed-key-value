@@ -1,10 +1,10 @@
 package com.distributed.keyvalue.chapter1.store.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommand
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.store.*
-import mu.KotlinLogging
 import java.util.concurrent.CompletableFuture
 
 /**
@@ -47,23 +47,36 @@ class SimpleFollowerNode(
     override fun process(request: Request): CompletableFuture<Response> {
         val future = CompletableFuture<Response>()
 
-        // TODO: parse request to SimpleRequestCommand
+        try {
+            // Parse request to SimpleRequestCommand
+            val command = SimpleRequestCommand.from(request.command)
 
-        // Followers should redirect write requests to the leader
-        val currentLeader = leader
-        if (currentLeader != null) {
-            return currentLeader.process(request)
+            // Followers should redirect write requests to the leader
+            val currentLeader = leader
+            if (currentLeader != null) {
+                return currentLeader.process(request)
+            }
+            
+            // If there's no leader, return an error
+            val response = SimpleResponse(
+                requestId = request.id,
+                result = ByteArray(0),
+                success = false,
+                errorMessage = "No leader available",
+                metadata = emptyMap()
+            )
+            future.complete(response)
+        } catch (e: Exception) {
+            // Handle parsing errors
+            val response = SimpleResponse(
+                requestId = request.id,
+                result = ByteArray(0),
+                success = false,
+                errorMessage = "Error parsing command: ${e.message}",
+                metadata = emptyMap()
+            )
+            future.complete(response)
         }
-        
-        // If there's no leader, return an error
-        val response = SimpleResponse(
-            requestId = request.id,
-            result = ByteArray(0),
-            success = false,
-            errorMessage = "No leader available",
-            metadata = emptyMap()
-        )
-        future.complete(response)
         
         return future
     }

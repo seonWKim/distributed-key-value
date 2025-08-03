@@ -1,6 +1,7 @@
 package com.distributed.keyvalue.chapter1.store.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommand
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.store.FollowerNode
@@ -114,7 +115,8 @@ class SimpleLeaderNode(
         val future = CompletableFuture<Response>()
         
         try {
-            // TODO: parse request to SimpleRequestCommand
+            // Parse request to SimpleRequestCommand
+            val command = SimpleRequestCommand.from(request.command)
 
             // Create a log entry from the request
             val logEntry: LogEntry = SimpleLogEntry(

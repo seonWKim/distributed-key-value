@@ -69,10 +69,51 @@ fun main(args: Array<String>) {
                 break
             }
 
-            // Create a request from the input
+            // Parse the input command
+            val parts = input.trim().split(" ", limit = 2)
+            if (parts.isEmpty()) {
+                log.info("Error: Empty command")
+                continue
+            }
+            
+            // Convert the string command to a byte array format that SimpleRequestCommand can parse
+            val commandBytes = when (parts[0].uppercase()) {
+                "GET" -> {
+                    if (parts.size < 2) {
+                        log.info("Error: GET command requires a key")
+                        continue
+                    }
+                    byteArrayOf(0) + parts[1].toByteArray()
+                }
+                "PUT" -> {
+                    if (parts.size < 2) {
+                        log.info("Error: PUT command requires key:value")
+                        continue
+                    }
+                    val keyValue = parts[1]
+                    if (!keyValue.contains(":")) {
+                        log.info("Error: PUT command format should be 'PUT key:value'")
+                        continue
+                    }
+                    byteArrayOf(1) + keyValue.toByteArray()
+                }
+                "DELETE" -> {
+                    if (parts.size < 2) {
+                        log.info("Error: DELETE command requires a key")
+                        continue
+                    }
+                    byteArrayOf(2) + parts[1].toByteArray()
+                }
+                else -> {
+                    log.info("Error: Unknown command '${parts[0]}'. Valid commands are GET, PUT, DELETE")
+                    continue
+                }
+            }
+            
+            // Create a request from the parsed command
             val request: Request = SimpleRequest(
                 id = UUID.randomUUID().toString(),
-                command = input.toByteArray()
+                command = commandBytes
             )
 
             // Process the request
