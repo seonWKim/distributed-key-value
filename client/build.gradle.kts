@@ -13,5 +13,5 @@ dependencies {
 }
 
 application {
-    mainClass.set("com.distributed.keyvalue.chapter1.MainKt")
+    mainClass.set("com.distributed.keyvalue.client.MainKt")
 }
