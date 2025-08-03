@@ -1,5 +1,0 @@
-- Consistent core(in big clusters)
-- Lease 
-- Change notification to clients(e.g. zookeeper notification) 
-- Gossip 
-- spontaneous leader
