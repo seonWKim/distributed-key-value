@@ -4,6 +4,8 @@ plugins {
 }
 
 dependencies {
+    api("io.github.microutils:kotlin-logging")
+
     implementation(kotlin("stdlib"))
     testImplementation(kotlin("test"))
 }

@@ -11,6 +11,8 @@ repositories {
 }
 
 dependencies {
+    implementation("io.github.microutils:kotlin-logging:2.0.4")
+
     implementation(project(":chapter1-data-replication"))
     implementation(project(":chapter2-data-partitioning"))
     implementation(project(":chapter3-distributed-time"))

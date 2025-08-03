@@ -27,7 +27,7 @@ interface Node {
     /**
      * The write-ahead log used by this node.
      */
-    val log: WriteAheadLog
+    val wal: WriteAheadLog
 
     /**
      * Starts the node.
