@@ -46,7 +46,9 @@ class SimpleFollowerNode(
     
     override fun process(request: Request): CompletableFuture<Response> {
         val future = CompletableFuture<Response>()
-        
+
+        // TODO: parse request to SimpleRequestCommand
+
         // Followers should redirect write requests to the leader
         val currentLeader = leader
         if (currentLeader != null) {

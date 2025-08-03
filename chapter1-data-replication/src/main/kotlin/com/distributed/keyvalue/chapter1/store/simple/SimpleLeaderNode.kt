@@ -114,6 +114,8 @@ class SimpleLeaderNode(
         val future = CompletableFuture<Response>()
         
         try {
+            // TODO: parse request to SimpleRequestCommand
+
             // Create a log entry from the request
             val logEntry: LogEntry = SimpleLogEntry(
                 id = wal.getLastPosition() + 1,
