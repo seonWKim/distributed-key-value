@@ -2,8 +2,7 @@ package com.distributed.keyvalue.chapter1
 
 import com.distributed.keyvalue.chapter1.request.Request
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequest
-import com.distributed.keyvalue.chapter1.store.FollowerNode
-import com.distributed.keyvalue.chapter1.store.LeaderNode
+import com.distributed.keyvalue.chapter1.serde.JsonSerializer
 import com.distributed.keyvalue.chapter1.store.Node
 import com.distributed.keyvalue.chapter1.store.simple.SimpleFollowerNode
 import com.distributed.keyvalue.chapter1.store.simple.SimpleInMemoryKeyValueStore
@@ -105,13 +104,8 @@ fun main(args: Array<String>) {
                             val responseFuture = node.process(request)
                             val response = responseFuture.get(5, TimeUnit.SECONDS)
 
-                            val responseString = if (response.success) {
-                                "Success: ${response.result}"
-                            } else {
-                                "Error: ${response.errorMessage}"
-                            }
-
-                            val responseBytes = responseString.toByteArray(Charsets.UTF_8)
+                            // Use the new serialization component to serialize the response
+                            val responseBytes = JsonSerializer.serialize(response)
                             output.writeInt(responseBytes.size)
                             output.write(responseBytes)
                         }

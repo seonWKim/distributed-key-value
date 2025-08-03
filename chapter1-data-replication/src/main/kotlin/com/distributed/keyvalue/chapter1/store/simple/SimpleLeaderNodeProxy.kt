@@ -3,6 +3,7 @@ package com.distributed.keyvalue.chapter1.store.simple
 import com.distributed.keyvalue.chapter1.request.Request
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
+import com.distributed.keyvalue.chapter1.serde.JsonSerializer
 import mu.KotlinLogging
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -94,30 +95,25 @@ class SimpleLeaderNodeProxy(
             val responseLength = inp.readInt()
             val responseBytes = ByteArray(responseLength)
             inp.readFully(responseBytes)
-            val responseString = String(responseBytes, Charsets.UTF_8)
             
-            // Parse the response
-            val success = responseString.startsWith("Success")
-            val result = if (success) {
-                responseString.substring("Success: ".length).toByteArray(Charsets.UTF_8)
-            } else {
-                null
+            // Deserialize the response directly to SimpleResponse using the new serialization component
+            try {
+                // Try to deserialize using the new JSON format
+                val response = JsonSerializer.deserialize<SimpleResponse>(responseBytes)
+                log.info { "[SimpleLeaderNodeProxy] deserialized response: $response" }
+                future.complete(response)
+                return future
+            } catch (e: Exception) {
+                val response = SimpleResponse(
+                    requestId = request.id,
+                    result = null,
+                    success = false,
+                    errorMessage = "Failed to deserialize response using JSON format, falling back to string format: ${e.message}",
+                    metadata = emptyMap()
+                )
+                
+                future.complete(response)
             }
-            val errorMessage = if (!success) {
-                responseString.substring("Error: ".length)
-            } else {
-                null
-            }
-            
-            val response = SimpleResponse(
-                requestId = request.id,
-                result = result,
-                success = success,
-                errorMessage = errorMessage,
-                metadata = emptyMap()
-            )
-            
-            future.complete(response)
         } catch (e: Exception) {
             log.error("Error forwarding request to leader: ${e.message}", e)
             
