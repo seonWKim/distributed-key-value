@@ -50,19 +50,11 @@ You will **implement and test** the following components and behaviors:
 
 ### ✅ Advanced Mechanics
 
-- **Generational Clock**  
-  Resettable clock to distinguish between leadership epochs.
-
-- **Lamport Clock**  
-  Logical timestamp for ordering events across nodes.
-
 - **Replicated Logs**  
   Ensure log consistency between leader and followers.
 
 - **Idempotent Operation Handling**  
   Prevent duplicate application of commands after retries.
-
-- **Version Vectors** and **LWW (Last Writer Wins)** conflict resolution.
 
 ---
 
