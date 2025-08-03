@@ -4,6 +4,7 @@ import com.distributed.keyvalue.chapter1.request.Request
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.store.*
+import mu.KotlinLogging
 import java.util.concurrent.CompletableFuture
 
 /**
@@ -15,7 +16,6 @@ class SimpleFollowerNode(
     override val wal: WriteAheadLog,
     private val electionTimeoutMs: Long = 1000
 ) : FollowerNode {
-
 
     override var currentTerm: Long = 0
         private set
