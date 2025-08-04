@@ -1,8 +1,6 @@
 package com.distributed.keyvalue.chapter1.store.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
-import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommand
-import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestGetCommand
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.store.*
@@ -32,7 +30,7 @@ class SimpleFollowerNode(
     override var leader: LeaderNode? = null
     
     // Direct reference to the leader proxy for forwarding requests
-    private var leaderProxy: SimpleLeaderNodeProxy? = null
+    private var leaderProxy: SimpleNodeProxy? = null
     
     override var lastHeartbeatTime: Long = System.currentTimeMillis()
     
@@ -46,9 +44,9 @@ class SimpleFollowerNode(
             // Connect to the leader if host and port are provided
             if (leaderHost != null && leaderPort != null) {
                 log.info("Connecting to leader at $leaderHost:$leaderPort")
-                val proxy = SimpleLeaderNodeProxy(
-                    leaderHost = leaderHost,
-                    leaderPort = leaderPort
+                val proxy = SimpleNodeProxy(
+                    host = leaderHost,
+                    port = leaderPort
                 )
                 proxy.start()
                 leaderProxy = proxy
