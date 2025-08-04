@@ -4,6 +4,7 @@ import com.distributed.keyvalue.chapter1.request.Request
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.serde.JsonSerializer
+import com.distributed.keyvalue.chapter1.store.NodeProxy
 import mu.KotlinLogging
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -14,13 +15,13 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
 /**
- * A proxy that forwards requests to a single node (leader or follower).
+ * A simple implementation of NodeProxy that forwards requests to a single node (leader or follower).
  * Designed to work with any node, not just the leader.
  */
 class SimpleNodeProxy(
     private val host: String,
     private val port: Int
-) {
+) : NodeProxy {
     private val log = KotlinLogging.logger { }
 
     private var socket: Socket? = null
@@ -29,7 +30,7 @@ class SimpleNodeProxy(
     private var running: Boolean = false
     private val reconnectExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
 
-    fun start() {
+    override fun start() {
         if (!running) {
             running = true
             connectToNode()
@@ -43,7 +44,7 @@ class SimpleNodeProxy(
         }
     }
 
-    fun stop() {
+    override fun stop() {
         if (running) {
             running = false
             reconnectExecutor.shutdown()
@@ -51,7 +52,7 @@ class SimpleNodeProxy(
         }
     }
 
-    fun process(request: Request): CompletableFuture<Response> {
+    override fun process(request: Request): CompletableFuture<Response> {
         val future = CompletableFuture<Response>()
 
         try {
