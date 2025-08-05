@@ -1,19 +1,18 @@
 package com.distributed.keyvalue.chapter1.store.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
-import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommand
-import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestDeleteCommand
-import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestGetCommand
-import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestPutCommand
+import com.distributed.keyvalue.chapter1.request.simple.*
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
-import com.distributed.keyvalue.chapter1.store.FollowerNode
+import com.distributed.keyvalue.chapter1.serde.JsonSerializer
 import com.distributed.keyvalue.chapter1.store.KeyValueStore
 import com.distributed.keyvalue.chapter1.store.LeaderNode
 import com.distributed.keyvalue.chapter1.store.LogEntry
+import com.distributed.keyvalue.chapter1.store.NodeProxy
 import com.distributed.keyvalue.chapter1.store.NodeState
 import com.distributed.keyvalue.chapter1.store.WriteAheadLog
 import mu.KotlinLogging
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -26,7 +25,7 @@ import java.util.concurrent.TimeUnit
 class SimpleLeaderNode(
     override val id: String,
     override val wal: WriteAheadLog,
-    override val followers: List<FollowerNode>,
+    override val followerProxies: List<NodeProxy>,
     private val keyValueStore: KeyValueStore,
     private val heartbeatIntervalMs: Long = 100
 ) : LeaderNode {
@@ -47,21 +46,20 @@ class SimpleLeaderNode(
     private val scheduler: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     private var running: Boolean = false
 
+    // Track the last replicated index for each follower proxy
+    private val followerReplicationIndices = mutableMapOf<NodeProxy, Long>()
+
     /**
      * Calculates the low watermark position in the log.
      * This is the position that has been replicated to all followers.
      */
     private fun calculateLowWatermark(): Long {
-        if (followers.isEmpty()) {
+        if (followerProxies.isEmpty()) {
             return wal.getLastPosition()
         }
 
         // Find the minimum log position across all followers
-        return followers.minOfOrNull { follower ->
-            // For simplicity, we assume each follower has a lastReplicatedIndex property
-            // In a real implementation, we would track this information
-            0L // Placeholder, would be follower.lastReplicatedIndex in a real implementation
-        } ?: 0L
+        return followerReplicationIndices.values.minOrNull() ?: 0L
     }
 
     /**
@@ -69,19 +67,14 @@ class SimpleLeaderNode(
      * This is the position that has been replicated to a quorum of nodes.
      */
     private fun calculateHighWatermark(): Long {
-        if (followers.isEmpty()) {
+        if (followerProxies.isEmpty()) {
             return wal.getLastPosition()
         }
 
         // Get all log positions, including this leader
         val positions = mutableListOf<Long>()
         positions.add(wal.getLastPosition())
-
-        // For simplicity, we assume each follower has a lastReplicatedIndex property
-        // In a real implementation, we would track this information
-        followers.forEach { follower ->
-            positions.add(0L) // Placeholder, would be follower.lastReplicatedIndex in a real implementation
-        }
+        positions.addAll(followerReplicationIndices.values)
 
         // Sort positions and get the position at the quorum index
         positions.sort()
@@ -92,6 +85,12 @@ class SimpleLeaderNode(
     override fun start() {
         if (!running) {
             running = true
+            
+            // Initialize replication indices
+            followerProxies.forEach { proxy ->
+                followerReplicationIndices[proxy] = 0L
+            }
+            
             // Schedule heartbeat task
             scheduler.scheduleAtFixedRate(
                 { sendHeartbeats() },
@@ -123,20 +122,22 @@ class SimpleLeaderNode(
         try {
             // Parse request to SimpleRequestCommand
             val command = SimpleRequestCommand.from(request.command)
-            var result: ByteArray?
+            var result: ByteArray? = null
+            
             when (command) {
                 is SimpleRequestGetCommand -> {
-                    val result = SimpleResponse(
+                    result = keyValueStore.get(command.key)
+                    val response = SimpleResponse(
                         requestId = request.id,
-                        result = keyValueStore.get(command.key),
+                        result = result,
                         success = true,
                         errorMessage = null,
                         metadata = emptyMap()
                     )
-                    future.complete(result)
+                    future.complete(response)
                     log.info {
                         "[SimpleLeaderNode] Handle GET Request(key = ${command.key.toString(Charsets.UTF_8)}, value = ${
-                            result.result?.toString(Charsets.UTF_8)})"
+                            result?.toString(Charsets.UTF_8)})"
                     }
                     return future
                 }
@@ -156,6 +157,20 @@ class SimpleLeaderNode(
                 is SimpleRequestDeleteCommand -> {
                     result = keyValueStore.delete(command.key)
                     log.info { "[SimpleLeaderNode] Handle DELETE Request(key = ${command.key.toString(Charsets.UTF_8)})" }
+                }
+                
+                // Handle other command types
+                is SimpleRequestHeartbeatCommand, is SimpleRequestAppendEntriesCommand -> {
+                    // These commands are for follower-to-leader communication, not client-to-leader
+                    val response = SimpleResponse(
+                        requestId = request.id,
+                        result = null,
+                        success = false,
+                        errorMessage = "Invalid command type for leader",
+                        metadata = emptyMap()
+                    )
+                    future.complete(response)
+                    return future
                 }
             }
 
@@ -209,12 +224,37 @@ class SimpleLeaderNode(
     }
 
     override fun sendHeartbeats() {
-        followers.forEach { follower ->
+        followerProxies.forEach { followerProxy ->
             try {
-                follower.processHeartbeat(currentTerm, highWatermark)
+                // Create a heartbeat request
+                val heartbeatCommand = SimpleRequestHeartbeatCommand(
+                    term = currentTerm,
+                    leaderCommit = highWatermark
+                )
+                
+                // Convert to byte array
+                val commandBytes = ByteArray(1 + 100) // Rough estimate of size
+                commandBytes[0] = 3 // Command type for heartbeat
+                val payload = "${heartbeatCommand.term}:${heartbeatCommand.leaderCommit}"
+                System.arraycopy(payload.toByteArray(Charsets.UTF_8), 0, commandBytes, 1, payload.length)
+                
+                // Create request
+                val request = SimpleRequest(
+                    id = UUID.randomUUID().toString(),
+                    command = commandBytes,
+                    timestamp = System.currentTimeMillis(),
+                    metadata = emptyMap()
+                )
+                
+                // Send request to follower
+                followerProxy.process(request)
+                    .exceptionally { e ->
+                        log.error("Failed to send heartbeat: ${e.message}", e)
+                        null
+                    }
             } catch (e: Exception) {
                 // Log error, but continue with other followers
-                println("Error sending heartbeat to follower ${follower.id}: ${e.message}")
+                log.error("Error sending heartbeat to follower: ${e.message}")
             }
         }
     }
@@ -222,7 +262,7 @@ class SimpleLeaderNode(
     override fun replicateLog(fromPosition: Long): CompletableFuture<Void> {
         val future = CompletableFuture<Void>()
 
-        if (followers.isEmpty()) {
+        if (followerProxies.isEmpty()) {
             future.complete(null)
             return future
         }
@@ -233,7 +273,7 @@ class SimpleLeaderNode(
             return future
         }
 
-        val replicationFutures = followers.map { follower ->
+        val replicationFutures = followerProxies.map { followerProxy ->
             val followerFuture = CompletableFuture<Boolean>()
 
             try {
@@ -246,18 +286,51 @@ class SimpleLeaderNode(
                     0
                 }
 
-                val success = follower.appendEntries(
+                // Convert entries to JSON for transmission
+                val entriesJsonBytes = JsonSerializer.serialize(entries)
+                val entriesJsonString = String(entriesJsonBytes, Charsets.UTF_8)
+                
+                // Create an appendEntries request
+                val appendEntriesCommand = SimpleRequestAppendEntriesCommand(
                     term = currentTerm,
                     prevLogIndex = prevLogIndex,
                     prevLogTerm = prevLogTerm,
-                    entries = entries,
+                    entriesJson = entriesJsonString,
                     leaderCommit = highWatermark
                 )
-
-                followerFuture.complete(success)
+                
+                // Convert to byte array
+                val commandBytes = ByteArray(1 + 1000) // Rough estimate of size
+                commandBytes[0] = 4 // Command type for appendEntries
+                val payload = "${appendEntriesCommand.term}:${appendEntriesCommand.prevLogIndex}:${appendEntriesCommand.prevLogTerm}:${appendEntriesCommand.leaderCommit}:${appendEntriesCommand.entriesJson}"
+                System.arraycopy(payload.toByteArray(Charsets.UTF_8), 0, commandBytes, 1, payload.length)
+                
+                // Create request
+                val request = SimpleRequest(
+                    id = UUID.randomUUID().toString(),
+                    command = commandBytes,
+                    timestamp = System.currentTimeMillis(),
+                    metadata = emptyMap()
+                )
+                
+                // Send request to follower
+                followerProxy.process(request)
+                    .thenAccept { response ->
+                        val success = response.success
+                        if (success) {
+                            // Update the replication index for this follower
+                            followerReplicationIndices[followerProxy] = fromPosition + entries.size - 1
+                        }
+                        followerFuture.complete(success)
+                    }
+                    .exceptionally { e ->
+                        log.error("Error replicating log to follower: ${e.message}", e)
+                        followerFuture.complete(false)
+                        null
+                    }
             } catch (e: Exception) {
                 // Log error, but continue with other followers
-                println("Error replicating log to follower ${follower.id}: ${e.message}")
+                log.error("Error preparing replication request: ${e.message}", e)
                 followerFuture.complete(false)
             }
 
@@ -266,8 +339,8 @@ class SimpleLeaderNode(
 
         // Wait for a quorum of followers to replicate
         CompletableFuture.allOf(*replicationFutures.toTypedArray()).thenRun {
-            val successCount = replicationFutures.count { it.get() }
-            if (successCount >= followers.size / 2) {
+            val successCount = replicationFutures.count { it.join() }
+            if (successCount >= followerProxies.size / 2) {
                 future.complete(null)
             } else {
                 future.completeExceptionally(Exception("Failed to replicate to a quorum of followers"))

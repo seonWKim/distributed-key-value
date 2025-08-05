@@ -36,9 +36,11 @@ data class SimpleRequest(
 }
 
 /**
- * First Byte -> type (0=GET, 1=PUT, 2=DELETE)
+ * First Byte -> type (0=GET, 1=PUT, 2=DELETE, 3=HEARTBEAT, 4=APPEND_ENTRIES)
  * Remaining Bytes: UTF-8 strings, delimited by ":"
  * e.g. PUT key:value  => [1, ..., UTF-8("key:value")]
+ * e.g. HEARTBEAT term:leaderCommit => [3, ..., UTF-8("term:leaderCommit")]
+ * e.g. APPEND_ENTRIES term:prevLogIndex:prevLogTerm:leaderCommit:entries => [4, ..., UTF-8("term:prevLogIndex:prevLogTerm:leaderCommit:entries")]
  */
 sealed interface SimpleRequestCommand {
     companion object {
@@ -60,6 +62,27 @@ sealed interface SimpleRequestCommand {
                 2 -> {
                     val key = command.copyOfRange(1, command.size)
                     SimpleRequestDeleteCommand(key)
+                }
+
+                3 -> {
+                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    val parts = payload.split(":", limit = 2)
+                    val term = parts[0].toLong()
+                    val leaderCommit = parts[1].toLong()
+                    SimpleRequestHeartbeatCommand(term, leaderCommit)
+                }
+
+                4 -> {
+                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    val parts = payload.split(":", limit = 5)
+                    val term = parts[0].toLong()
+                    val prevLogIndex = parts[1].toLong()
+                    val prevLogTerm = parts[2].toLong()
+                    val leaderCommit = parts[3].toLong()
+                    val entriesJson = parts[4]
+                    // For simplicity, we'll pass the entries as a JSON string
+                    // In a real implementation, we would deserialize this to a List<LogEntry>
+                    SimpleRequestAppendEntriesCommand(term, prevLogIndex, prevLogTerm, entriesJson, leaderCommit)
                 }
 
                 else -> throw IllegalArgumentException("Unknown command type: ${command[0]}")
@@ -138,5 +161,32 @@ data class SimpleRequestDeleteCommand(
 
     override fun toString(): String {
         return "SimpleRequestDeleteCommand(key=${key.toString(Charsets.UTF_8)})"
+    }
+}
+
+/**
+ * Command for sending heartbeats from leader to followers.
+ */
+data class SimpleRequestHeartbeatCommand(
+    val term: Long,
+    val leaderCommit: Long
+) : SimpleRequestCommand {
+    override fun toString(): String {
+        return "SimpleRequestHeartbeatCommand(term=$term, leaderCommit=$leaderCommit)"
+    }
+}
+
+/**
+ * Command for replicating log entries from leader to followers.
+ */
+data class SimpleRequestAppendEntriesCommand(
+    val term: Long,
+    val prevLogIndex: Long,
+    val prevLogTerm: Long,
+    val entriesJson: String,
+    val leaderCommit: Long
+) : SimpleRequestCommand {
+    override fun toString(): String {
+        return "SimpleRequestAppendEntriesCommand(term=$term, prevLogIndex=$prevLogIndex, prevLogTerm=$prevLogTerm, entriesJson=$entriesJson, leaderCommit=$leaderCommit)"
     }
 }

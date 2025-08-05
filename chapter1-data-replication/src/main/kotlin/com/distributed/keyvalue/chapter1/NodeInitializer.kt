@@ -213,7 +213,7 @@ class NodeInitializer {
                 SimpleLeaderNode(
                     id = "$host:$port",
                     wal = wal,
-                    followers = emptyList(),
+                    followerProxies = emptyList(),
                     keyValueStore = SimpleInMemoryKeyValueStore()
                 )
             }

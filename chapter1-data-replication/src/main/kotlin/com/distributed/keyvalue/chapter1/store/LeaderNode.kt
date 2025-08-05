@@ -8,9 +8,9 @@ import java.util.concurrent.CompletableFuture
  */
 interface LeaderNode : Node {
     /**
-     * The list of follower nodes.
+     * The list of follower node proxies.
      */
-    val followers: List<FollowerNode>
+    val followerProxies: List<NodeProxy>
 
     /**
      * The low watermark position in the log.

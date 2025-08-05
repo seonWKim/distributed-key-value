@@ -1,8 +1,10 @@
 package com.distributed.keyvalue.chapter1.store.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
+import com.distributed.keyvalue.chapter1.request.simple.*
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
+import com.distributed.keyvalue.chapter1.serde.JsonSerializer
 import com.distributed.keyvalue.chapter1.store.*
 import mu.KotlinLogging
 import java.util.concurrent.CompletableFuture
@@ -27,8 +29,8 @@ class SimpleFollowerNode(
     
     override val state: NodeState = NodeState.FOLLOWER
     
-    // Direct reference to the leader proxy for forwarding requests
-    override var leader: SimpleNodeProxy? = null
+    // Reference to the leader proxy for forwarding requests
+    override var leader: NodeProxy? = null
     
     override var lastHeartbeatTime: Long = System.currentTimeMillis()
     
@@ -42,13 +44,13 @@ class SimpleFollowerNode(
             // Connect to the leader if host and port are provided
             if (leaderHost != null && leaderPort != null) {
                 log.info("Connecting to leader at $leaderHost:$leaderPort")
-                val proxy = SimpleNodeProxy(
+                // Create a NodeProxy to the leader
+                val proxy: NodeProxy = SimpleNodeProxy(
                     host = leaderHost,
                     port = leaderPort
                 )
                 proxy.start()
                 leader = proxy
-                // We keep leader as null since we're not using LeaderNode interface anymore
                 log.info("Connected to leader at $leaderHost:$leaderPort")
             } else {
                 log.warn("No leader host/port provided, will not connect to leader")
@@ -75,30 +77,74 @@ class SimpleFollowerNode(
         val future = CompletableFuture<Response>()
 
         try {
-            // TODO: handle GET request(quorum)
-
-            val proxy = leader
-            if (proxy != null) {
-                log.info { "[SimpleFollowerNode] Redirect request to leader node"}
-                return proxy.process(request)
-            }
+            // Parse request to SimpleRequestCommand
+            val command = SimpleRequestCommand.from(request.command)
             
-            // If there's no leader proxy, return an error
-            val response = SimpleResponse(
-                requestId = request.id,
-                result = null,
-                success = false,
-                errorMessage = "No leader available",
-                metadata = emptyMap()
-            )
-            future.complete(response)
+            when (command) {
+                // Handle heartbeat requests from the leader
+                is SimpleRequestHeartbeatCommand -> {
+                    val success = processHeartbeat(command.term, command.leaderCommit)
+                    val response = SimpleResponse(
+                        requestId = request.id,
+                        result = null,
+                        success = success,
+                        errorMessage = if (success) null else "Heartbeat rejected",
+                        metadata = mapOf("term" to currentTerm.toString())
+                    )
+                    future.complete(response)
+                }
+                
+                // Handle appendEntries requests from the leader
+                is SimpleRequestAppendEntriesCommand -> {
+                    // Deserialize entries from JSON
+                    val entriesJsonBytes = command.entriesJson.toByteArray(Charsets.UTF_8)
+                    val entries = JsonSerializer.deserialize<List<SimpleLogEntry>>(entriesJsonBytes)
+                    
+                    val success = appendEntries(
+                        term = command.term,
+                        prevLogIndex = command.prevLogIndex,
+                        prevLogTerm = command.prevLogTerm,
+                        entries = entries,
+                        leaderCommit = command.leaderCommit
+                    )
+                    
+                    val response = SimpleResponse(
+                        requestId = request.id,
+                        result = null,
+                        success = success,
+                        errorMessage = if (success) null else "AppendEntries rejected",
+                        metadata = mapOf("term" to currentTerm.toString())
+                    )
+                    future.complete(response)
+                }
+                
+                // For all other requests, forward to the leader if available
+                else -> {
+                    // TODO: handle GET request(quorum)
+                    val proxy = leader
+                    if (proxy != null) {
+                        log.info { "[SimpleFollowerNode] Redirect request to leader node"}
+                        return proxy.process(request)
+                    }
+                    
+                    // If there's no leader proxy, return an error
+                    val response = SimpleResponse(
+                        requestId = request.id,
+                        result = null,
+                        success = false,
+                        errorMessage = "No leader available",
+                        metadata = emptyMap()
+                    )
+                    future.complete(response)
+                }
+            }
         } catch (e: Exception) {
             // Handle parsing errors
             val response = SimpleResponse(
                 requestId = request.id,
                 result = null,
                 success = false,
-                errorMessage = "Error parsing command: ${e.message}",
+                errorMessage = "Error processing request: ${e.message}",
                 metadata = emptyMap()
             )
             future.complete(response)
