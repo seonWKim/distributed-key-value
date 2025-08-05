@@ -36,11 +36,48 @@ data class SimpleRequest(
 }
 
 /**
- * First Byte -> type (0=GET, 1=PUT, 2=DELETE, 3=HEARTBEAT, 4=APPEND_ENTRIES)
- * Remaining Bytes: UTF-8 strings, delimited by ":"
- * e.g. PUT key:value  => [1, ..., UTF-8("key:value")]
- * e.g. HEARTBEAT term:leaderCommit => [3, ..., UTF-8("term:leaderCommit")]
- * e.g. APPEND_ENTRIES term:prevLogIndex:prevLogTerm:leaderCommit:entries => [4, ..., UTF-8("term:prevLogIndex:prevLogTerm:leaderCommit:entries")]
+ * Binary protocol format for request and response messages over TCP.
+ *
+ * ## Structure:
+ * - **First Byte**: Message type indicator
+ *   - `0` = GET
+ *   - `1` = PUT
+ *   - `2` = DELETE
+ *   - `3` = HEARTBEAT
+ *   - `4` = APPEND_ENTRIES
+ *
+ * - **Remaining Bytes**: UTF-8 encoded string payload, delimited by colons (`:`).
+ *   - Fields depend on the message type.
+ *   - All fields must be UTF-8 strings separated by colons.
+ *
+ * ## Message Format Examples:
+ *
+ * - **PUT key:value**
+ *   - Byte sequence: `[1, ..., UTF-8("key:value")]`
+ *   - `key` and `value` are strings to insert into the key-value store.
+ *
+ * - **GET key**
+ *   - Byte sequence: `[0, ..., UTF-8("key")]`
+ *   - Used to retrieve the value associated with a key.
+ *
+ * - **DELETE key**
+ *   - Byte sequence: `[2, ..., UTF-8("key")]`
+ *   - Requests deletion of the given key.
+ *
+ * - **HEARTBEAT term:leaderCommit**
+ *   - Byte sequence: `[3, ..., UTF-8("term:leaderCommit")]`
+ *   - Used by the leader to signal liveness and commit index.
+ *   - `term`: Current term number.
+ *   - `leaderCommit`: Index of highest log entry known to be committed.
+ *
+ * - **APPEND_ENTRIES term:prevLogIndex:prevLogTerm:leaderCommit:entries**
+ *   - Byte sequence: `[4, ..., UTF-8("term:prevLogIndex:prevLogTerm:leaderCommit:entries")]`
+ *   - Sent by the leader to replicate log entries.
+ *   - `term`: Current term.
+ *   - `prevLogIndex`: Index of log entry immediately preceding new ones.
+ *   - `prevLogTerm`: Term of the previous log entry.
+ *   - `leaderCommit`: Leader’s commit index.
+ *   - `entries`: Concatenated string or serialized representation of log entries.
  */
 sealed interface SimpleRequestCommand {
     companion object {
