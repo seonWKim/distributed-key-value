@@ -8,6 +8,9 @@ import com.distributed.keyvalue.chapter1.serde.JsonSerializer
 import com.distributed.keyvalue.chapter1.store.*
 import mu.KotlinLogging
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 /**
  * Simple implementation of the FollowerNode interface.
@@ -27,7 +30,10 @@ class SimpleFollowerNode(
     override var currentTerm: Long = 0
         private set
     
-    override val state: NodeState = NodeState.FOLLOWER
+    // Use a mutable state variable
+    private var nodeState: NodeState = NodeState.FOLLOWER
+    override val state: NodeState
+        get() = nodeState
     
     // Reference to the leader proxy for forwarding requests
     override var leader: NodeProxy? = null
@@ -36,6 +42,9 @@ class SimpleFollowerNode(
     
     private var commitIndex: Long = 0
     private var running: Boolean = false
+    
+    // Timer for checking election timeout
+    private val electionTimer: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     
     override fun start() {
         if (!running) {
@@ -56,7 +65,43 @@ class SimpleFollowerNode(
                 log.warn("No leader host/port provided, will not connect to leader")
             }
 
-            // TODO: In a real implementation, we would start a timer to check for election timeout and transition to CANDIDATE state if no heartbeat is received within the timeout
+            // Start a timer to check for election timeout
+            electionTimer.scheduleAtFixedRate({
+                checkElectionTimeout()
+            }, electionTimeoutMs / 2, electionTimeoutMs / 2, TimeUnit.MILLISECONDS)
+            
+            log.info("Started election timeout timer with interval ${electionTimeoutMs / 2}ms")
+        }
+    }
+    
+    /**
+     * Checks if the time since the last heartbeat exceeds the election timeout.
+     * If it does, transitions to CANDIDATE state.
+     */
+    private fun checkElectionTimeout() {
+        if (!running) return
+        
+        val currentTime = System.currentTimeMillis()
+        val timeSinceLastHeartbeat = currentTime - lastHeartbeatTime
+        
+        if (timeSinceLastHeartbeat > electionTimeoutMs) {
+            log.info("Election timeout: No heartbeat received for ${timeSinceLastHeartbeat}ms (timeout: ${electionTimeoutMs}ms)")
+            
+            // Transition to CANDIDATE state
+            if (nodeState == NodeState.FOLLOWER) {
+                log.info("Transitioning from FOLLOWER to CANDIDATE state")
+                nodeState = NodeState.CANDIDATE
+                
+                // In a real implementation, we would start an election here
+                // For now, we'll just log the transition
+                log.info("Node $id is now a candidate for term ${currentTerm + 1}")
+                
+                // Increment term
+                currentTerm++
+                
+                // Reset last heartbeat time to avoid immediate re-election
+                lastHeartbeatTime = currentTime
+            }
         }
     }
     
@@ -69,6 +114,18 @@ class SimpleFollowerNode(
                 log.info("Stopping connection to leader")
                 it.stop()
                 leader = null
+            }
+            
+            // Stop the election timer
+            try {
+                log.info("Stopping election timer")
+                electionTimer.shutdown()
+                if (!electionTimer.awaitTermination(1, TimeUnit.SECONDS)) {
+                    electionTimer.shutdownNow()
+                }
+            } catch (e: InterruptedException) {
+                electionTimer.shutdownNow()
+                Thread.currentThread().interrupt()
             }
         }
     }
@@ -83,6 +140,7 @@ class SimpleFollowerNode(
             when (command) {
                 // Handle heartbeat requests from the leader
                 is SimpleRequestHeartbeatCommand -> {
+                    log.info { "[SimpleFollowerNode] Handling heartbeat command: $command" }
                     val success = processHeartbeat(command.term, command.leaderCommit)
                     val response = SimpleResponse(
                         requestId = request.id,
@@ -99,7 +157,7 @@ class SimpleFollowerNode(
                     // Deserialize entries from JSON
                     val entriesJsonBytes = command.entriesJson.toByteArray(Charsets.UTF_8)
                     val entries = JsonSerializer.deserialize<List<SimpleLogEntry>>(entriesJsonBytes)
-                    
+                    log.info { "[SimpleFollowerNode] Handling request append entries command: $entries"}
                     val success = appendEntries(
                         term = command.term,
                         prevLogIndex = command.prevLogIndex,

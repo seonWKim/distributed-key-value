@@ -84,24 +84,27 @@ sealed interface SimpleRequestCommand {
         fun from(command: ByteArray): SimpleRequestCommand {
             require(command.isNotEmpty()) { "Command must not be empty" }
 
-            return when (command[0].toInt()) {
-                0 -> {
+            // Convert the first byte to a command type
+            val commandType = SimpleRequestCommandType.fromByte(command[0])
+
+            return when (commandType) {
+                SimpleRequestCommandType.GET -> {
                     val key = command.copyOfRange(1, command.size)
                     SimpleRequestGetCommand(key)
                 }
 
-                1 -> {
+                SimpleRequestCommandType.PUT -> {
                     val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
                     val (key, value) = payload.split(":", limit = 2)
                     SimpleRequestPutCommand(key.toByteArray(Charsets.UTF_8), value.toByteArray(Charsets.UTF_8))
                 }
 
-                2 -> {
+                SimpleRequestCommandType.DELETE -> {
                     val key = command.copyOfRange(1, command.size)
                     SimpleRequestDeleteCommand(key)
                 }
 
-                3 -> {
+                SimpleRequestCommandType.HEARTBEAT -> {
                     val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
                     val parts = payload.split(":", limit = 2)
                     val term = parts[0].toLong()
@@ -109,7 +112,7 @@ sealed interface SimpleRequestCommand {
                     SimpleRequestHeartbeatCommand(term, leaderCommit)
                 }
 
-                4 -> {
+                SimpleRequestCommandType.APPEND_ENTRIES -> {
                     val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
                     val parts = payload.split(":", limit = 5)
                     val term = parts[0].toLong()
@@ -121,9 +124,39 @@ sealed interface SimpleRequestCommand {
                     // In a real implementation, we would deserialize this to a List<LogEntry>
                     SimpleRequestAppendEntriesCommand(term, prevLogIndex, prevLogTerm, entriesJson, leaderCommit)
                 }
-
-                else -> throw IllegalArgumentException("Unknown command type: ${command[0]}")
             }
+        }
+    }
+}
+
+/**
+ * Enum representing the different types of commands that can be sent in a SimpleRequest.
+ * Each enum value has a corresponding byte value that is used in the binary protocol.
+ *
+ * - GET: Used to retrieve a value by key
+ * - PUT: Used to store a key-value pair
+ * - DELETE: Used to remove a key-value pair
+ * - HEARTBEAT: Used by the leader to signal liveness to followers
+ * - APPEND_ENTRIES: Used by the leader to replicate log entries to followers
+ */
+enum class SimpleRequestCommandType(val value: Byte) {
+    GET(0),
+    PUT(1),
+    DELETE(2),
+    HEARTBEAT(3),
+    APPEND_ENTRIES(4);
+    
+    companion object {
+        /**
+         * Returns the command type corresponding to the given byte value.
+         *
+         * @param value The byte value to look up
+         * @return The corresponding SimpleRequestCommandType
+         * @throws IllegalArgumentException if the byte value doesn't match any command type
+         */
+        fun fromByte(value: Byte): SimpleRequestCommandType {
+            return values().find { it.value == value }
+                ?: throw IllegalArgumentException("Unknown command type: $value")
         }
     }
 }

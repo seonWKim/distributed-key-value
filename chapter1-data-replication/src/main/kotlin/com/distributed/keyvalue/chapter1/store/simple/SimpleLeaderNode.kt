@@ -25,10 +25,15 @@ import java.util.concurrent.TimeUnit
 class SimpleLeaderNode(
     override val id: String,
     override val wal: WriteAheadLog,
-    override val followerProxies: List<NodeProxy>,
+    followerProxies: List<NodeProxy> = emptyList(),
     private val keyValueStore: KeyValueStore,
     private val heartbeatIntervalMs: Long = 100
 ) : LeaderNode {
+    
+    // Use a mutable list for follower proxies
+    private val _followerProxies = followerProxies.toMutableList()
+    override val followerProxies: List<NodeProxy>
+        get() = _followerProxies.toList() // Return an immutable copy
 
     private val log = KotlinLogging.logger { }
 
@@ -113,6 +118,25 @@ class SimpleLeaderNode(
                 scheduler.shutdownNow()
                 Thread.currentThread().interrupt()
             }
+        }
+    }
+    
+    /**
+     * Registers a new follower proxy with this leader.
+     * This allows followers to connect to the leader after the leader has started.
+     *
+     * @param proxy The proxy to the follower node
+     */
+    override fun registerFollowerProxy(proxy: NodeProxy) {
+        log.info("Registering new follower proxy")
+        
+        // Add the proxy to the list if it's not already there
+        if (!_followerProxies.contains(proxy)) {
+            _followerProxies.add(proxy)
+            followerReplicationIndices[proxy] = 0L
+            log.info("Follower proxy registered, total followers: ${_followerProxies.size}")
+        } else {
+            log.info("Follower proxy already registered")
         }
     }
 
@@ -234,7 +258,7 @@ class SimpleLeaderNode(
                 
                 // Convert to byte array
                 val commandBytes = ByteArray(1 + 100) // Rough estimate of size
-                commandBytes[0] = 3 // Command type for heartbeat
+                commandBytes[0] = SimpleRequestCommandType.HEARTBEAT.value // Command type for heartbeat
                 val payload = "${heartbeatCommand.term}:${heartbeatCommand.leaderCommit}"
                 System.arraycopy(payload.toByteArray(Charsets.UTF_8), 0, commandBytes, 1, payload.length)
                 
@@ -245,6 +269,7 @@ class SimpleLeaderNode(
                     timestamp = System.currentTimeMillis(),
                     metadata = emptyMap()
                 )
+                log.info { "[SimpleLeaderNode] Sending heartbeats: $request" }
                 
                 // Send request to follower
                 followerProxy.process(request)
@@ -301,7 +326,7 @@ class SimpleLeaderNode(
                 
                 // Convert to byte array
                 val commandBytes = ByteArray(1 + 1000) // Rough estimate of size
-                commandBytes[0] = 4 // Command type for appendEntries
+                commandBytes[0] = SimpleRequestCommandType.APPEND_ENTRIES.value // Command type for appendEntries
                 val payload = "${appendEntriesCommand.term}:${appendEntriesCommand.prevLogIndex}:${appendEntriesCommand.prevLogTerm}:${appendEntriesCommand.leaderCommit}:${appendEntriesCommand.entriesJson}"
                 System.arraycopy(payload.toByteArray(Charsets.UTF_8), 0, commandBytes, 1, payload.length)
                 

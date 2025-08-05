@@ -25,6 +25,13 @@ interface LeaderNode : Node {
     val highWatermark: Long
 
     /**
+     * Registers a new follower proxy with this leader.
+     *
+     * @param proxy The proxy to the follower node
+     */
+    fun registerFollowerProxy(proxy: NodeProxy)
+
+    /**
      * Sends heartbeats to all followers.
      */
     fun sendHeartbeats()
