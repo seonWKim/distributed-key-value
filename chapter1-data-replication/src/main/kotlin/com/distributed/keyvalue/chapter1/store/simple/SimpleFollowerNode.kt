@@ -27,10 +27,8 @@ class SimpleFollowerNode(
     
     override val state: NodeState = NodeState.FOLLOWER
     
-    override var leader: LeaderNode? = null
-    
     // Direct reference to the leader proxy for forwarding requests
-    private var leaderProxy: SimpleNodeProxy? = null
+    override var leader: SimpleNodeProxy? = null
     
     override var lastHeartbeatTime: Long = System.currentTimeMillis()
     
@@ -49,7 +47,7 @@ class SimpleFollowerNode(
                     port = leaderPort
                 )
                 proxy.start()
-                leaderProxy = proxy
+                leader = proxy
                 // We keep leader as null since we're not using LeaderNode interface anymore
                 log.info("Connected to leader at $leaderHost:$leaderPort")
             } else {
@@ -65,10 +63,10 @@ class SimpleFollowerNode(
             running = false
             
             // Stop the leader proxy if it exists
-            leaderProxy?.let {
+            leader?.let {
                 log.info("Stopping connection to leader")
                 it.stop()
-                leaderProxy = null
+                leader = null
             }
         }
     }
@@ -79,7 +77,7 @@ class SimpleFollowerNode(
         try {
             // TODO: handle GET request(quorum)
 
-            val proxy = leaderProxy
+            val proxy = leader
             if (proxy != null) {
                 log.info { "[SimpleFollowerNode] Redirect request to leader node"}
                 return proxy.process(request)

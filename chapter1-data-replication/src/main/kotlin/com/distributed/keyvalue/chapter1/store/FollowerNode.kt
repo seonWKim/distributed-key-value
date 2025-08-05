@@ -13,7 +13,7 @@ interface FollowerNode : Node {
     /**
      * The leader node this follower is following.
      */
-    val leader: LeaderNode?
+    val leader: NodeProxy?
 
     /**
      * The last time a heartbeat was received from the leader.
