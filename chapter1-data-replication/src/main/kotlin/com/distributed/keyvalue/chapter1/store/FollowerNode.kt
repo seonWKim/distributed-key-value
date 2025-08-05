@@ -1,11 +1,6 @@
 package com.distributed.keyvalue.chapter1.store
 
 /**
- * Core interfaces for the distributed key-value store.
- * These interfaces define the fundamental components needed for data replication
- * in a distributed system.
- */
-/**
  * Interface for a follower node.
  * Followers replicate logs passively from the leader.
  */
