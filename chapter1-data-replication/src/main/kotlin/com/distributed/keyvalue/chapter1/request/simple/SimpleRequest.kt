@@ -227,9 +227,7 @@ sealed interface SimpleLeaderRequestCommand : SimpleRequestCommand {
             require(command.isNotEmpty()) { "Command must not be empty" }
 
             // Convert the first byte to a command type
-            val commandType = SimpleRequestCommandType.fromByte(command[0])
-
-            return when (commandType) {
+            return when (val commandType = SimpleRequestCommandType.fromByte(command[0])) {
                 SimpleRequestCommandType.GET -> {
                     val key = command.copyOfRange(1, command.size)
                     SimpleRequestGetCommand(key)
@@ -261,9 +259,7 @@ sealed interface SimpleFollowerRequestCommand : SimpleRequestCommand {
             require(command.isNotEmpty()) { "Command must not be empty" }
 
             // Convert the first byte to a command type
-            val commandType = SimpleRequestCommandType.fromByte(command[0])
-
-            return when (commandType) {
+            return when (val commandType = SimpleRequestCommandType.fromByte(command[0])) {
                 SimpleRequestCommandType.HEARTBEAT -> {
                     val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
                     val parts = payload.split(":", limit = 2)
