@@ -79,7 +79,7 @@ class NodeInitializer {
         while (!serverSocket.isClosed) {
             try {
                 val clientSocket = serverSocket.accept()
-                log.info("Client connected: ${clientSocket.inetAddress.hostAddress}")
+                log.info("Client connected: ${clientSocket.inetAddress.hostAddress}:${clientSocket.port}")
                 
                 clientSocket.soTimeout = 15_000 // optional read timeout
                 
