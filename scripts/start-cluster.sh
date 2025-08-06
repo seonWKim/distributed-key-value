@@ -20,7 +20,7 @@ done
 # === Build ===
 echo "Cleaning and building project..."
 ./gradlew chapter1-data-replication:clean
-./gradlew chapter1-data-replication:build
+./gradlew chapter1-data-replication:build -x test
 
 # === Start Leader ===
 echo "Starting leader on port $LEADER_PORT..."
