@@ -97,7 +97,13 @@ class NodeInitializer {
                                     break
                                 }
                                 
-                                if (length <= 0 || length > 10_000) {
+                                // Handle keep-alive messages (0 length)
+                                if (length == 0) {
+                                    log.debug("Received keep-alive ping from client")
+                                    continue
+                                }
+                                
+                                if (length < 0 || length > 10_000) {
                                     log.warn("Invalid request length: $length")
                                     break
                                 }

@@ -29,18 +29,39 @@ class SimpleNodeProxy(
     private var output: DataOutputStream? = null
     private var running: Boolean = false
     private val reconnectExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+    private val keepAliveExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
 
     override fun start() {
         if (!running) {
             running = true
             connectToNode()
 
+            // Schedule reconnection attempts
             reconnectExecutor.scheduleAtFixedRate({
                 if (running && (socket == null || socket?.isClosed == true)) {
                     log.info("Attempting to reconnect to node at $host:$port")
                     connectToNode()
                 }
             }, 5, 5, TimeUnit.SECONDS)
+            
+            // Schedule keep-alive pings to prevent socket timeout
+            keepAliveExecutor.scheduleAtFixedRate({
+                if (running && socket != null && !socket!!.isClosed) {
+                    try {
+                        // Send a simple keep-alive ping (1 byte)
+                        log.debug("Sending keep-alive ping to $host:$port")
+                        val out = output
+                        if (out != null) {
+                            // Write a 0-length message as a keep-alive
+                            out.writeInt(0)
+                            out.flush()
+                        }
+                    } catch (e: Exception) {
+                        log.warn("Failed to send keep-alive ping: ${e.message}")
+                        closeConnection()
+                    }
+                }
+            }, 5, 5, TimeUnit.SECONDS) // Send keep-alive every 5 seconds
         }
     }
 
@@ -48,6 +69,7 @@ class SimpleNodeProxy(
         if (running) {
             running = false
             reconnectExecutor.shutdown()
+            keepAliveExecutor.shutdown()
             closeConnection()
         }
     }
