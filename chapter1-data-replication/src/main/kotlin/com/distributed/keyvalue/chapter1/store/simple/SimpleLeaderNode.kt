@@ -2,6 +2,7 @@ package com.distributed.keyvalue.chapter1.store.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
 import com.distributed.keyvalue.chapter1.request.simple.*
+import com.distributed.keyvalue.chapter1.request.simple.SimpleLeaderRequestCommand
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.serde.JsonSerializer
@@ -144,8 +145,8 @@ class SimpleLeaderNode(
         val future = CompletableFuture<Response>()
 
         try {
-            // Parse request to SimpleRequestCommand
-            val command = SimpleRequestCommand.from(request.command)
+            // Parse request to SimpleLeaderRequestCommand
+            val command = SimpleLeaderRequestCommand.from(request.command)
             var result: ByteArray? = null
             
             when (command) {
@@ -181,20 +182,6 @@ class SimpleLeaderNode(
                 is SimpleRequestDeleteCommand -> {
                     result = keyValueStore.delete(command.key)
                     log.info { "[SimpleLeaderNode] Handle DELETE Request(key = ${command.key.toString(Charsets.UTF_8)})" }
-                }
-                
-                // Handle other command types
-                is SimpleRequestHeartbeatCommand, is SimpleRequestAppendEntriesCommand -> {
-                    // These commands are for follower-to-leader communication, not client-to-leader
-                    val response = SimpleResponse(
-                        requestId = request.id,
-                        result = null,
-                        success = false,
-                        errorMessage = "Invalid command type for leader",
-                        metadata = emptyMap()
-                    )
-                    future.complete(response)
-                    return future
                 }
             }
 

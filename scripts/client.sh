@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# sh scripts/start-client.sh --port=20000
+# sh scripts/client.sh --port=20000
 
 set -e
 

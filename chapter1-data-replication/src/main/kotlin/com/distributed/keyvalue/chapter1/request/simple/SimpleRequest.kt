@@ -79,55 +79,12 @@ data class SimpleRequest(
  *   - `leaderCommit`: Leader’s commit index.
  *   - `entries`: Concatenated string or serialized representation of log entries.
  */
-sealed interface SimpleRequestCommand {
-    companion object {
-        fun from(command: ByteArray): SimpleRequestCommand {
-            require(command.isNotEmpty()) { "Command must not be empty" }
-
-            // Convert the first byte to a command type
-            val commandType = SimpleRequestCommandType.fromByte(command[0])
-
-            return when (commandType) {
-                SimpleRequestCommandType.GET -> {
-                    val key = command.copyOfRange(1, command.size)
-                    SimpleRequestGetCommand(key)
-                }
-
-                SimpleRequestCommandType.PUT -> {
-                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
-                    val (key, value) = payload.split(":", limit = 2)
-                    SimpleRequestPutCommand(key.toByteArray(Charsets.UTF_8), value.toByteArray(Charsets.UTF_8))
-                }
-
-                SimpleRequestCommandType.DELETE -> {
-                    val key = command.copyOfRange(1, command.size)
-                    SimpleRequestDeleteCommand(key)
-                }
-
-                SimpleRequestCommandType.HEARTBEAT -> {
-                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
-                    val parts = payload.split(":", limit = 2)
-                    val term = parts[0].toLong()
-                    val leaderCommit = parts[1].toLong()
-                    SimpleRequestHeartbeatCommand(term, leaderCommit)
-                }
-
-                SimpleRequestCommandType.APPEND_ENTRIES -> {
-                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
-                    val parts = payload.split(":", limit = 5)
-                    val term = parts[0].toLong()
-                    val prevLogIndex = parts[1].toLong()
-                    val prevLogTerm = parts[2].toLong()
-                    val leaderCommit = parts[3].toLong()
-                    val entriesJson = parts[4]
-                    // For simplicity, we'll pass the entries as a JSON string
-                    // In a real implementation, we would deserialize this to a List<LogEntry>
-                    SimpleRequestAppendEntriesCommand(term, prevLogIndex, prevLogTerm, entriesJson, leaderCommit)
-                }
-            }
-        }
-    }
-}
+/**
+ * Marker interface for all request commands.
+ * This interface is kept for backward compatibility.
+ * Use SimpleLeaderRequestCommand or SimpleFollowerRequestCommand instead.
+ */
+interface SimpleRequestCommand
 
 /**
  * Enum representing the different types of commands that can be sent in a SimpleRequest.
@@ -163,7 +120,7 @@ enum class SimpleRequestCommandType(val value: Byte) {
 
 data class SimpleRequestGetCommand(
     val key: ByteArray
-) : SimpleRequestCommand {
+) : SimpleLeaderRequestCommand, SimpleFollowerRequestCommand {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -187,7 +144,7 @@ data class SimpleRequestGetCommand(
 data class SimpleRequestPutCommand(
     val key: ByteArray,
     val value: ByteArray
-) : SimpleRequestCommand {
+) : SimpleLeaderRequestCommand, SimpleFollowerRequestCommand {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -213,7 +170,7 @@ data class SimpleRequestPutCommand(
 
 data class SimpleRequestDeleteCommand(
     val key: ByteArray
-) : SimpleRequestCommand {
+) : SimpleLeaderRequestCommand, SimpleFollowerRequestCommand {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -240,7 +197,7 @@ data class SimpleRequestDeleteCommand(
 data class SimpleRequestHeartbeatCommand(
     val term: Long,
     val leaderCommit: Long
-) : SimpleRequestCommand {
+) : SimpleFollowerRequestCommand {
     override fun toString(): String {
         return "SimpleRequestHeartbeatCommand(term=$term, leaderCommit=$leaderCommit)"
     }
@@ -255,8 +212,79 @@ data class SimpleRequestAppendEntriesCommand(
     val prevLogTerm: Long,
     val entriesJson: String,
     val leaderCommit: Long
-) : SimpleRequestCommand {
+) : SimpleFollowerRequestCommand {
     override fun toString(): String {
         return "SimpleRequestAppendEntriesCommand(term=$term, prevLogIndex=$prevLogIndex, prevLogTerm=$prevLogTerm, entriesJson=$entriesJson, leaderCommit=$leaderCommit)"
+    }
+}
+
+/**
+ * Commands that are processed by the leader node.
+ */
+sealed interface SimpleLeaderRequestCommand : SimpleRequestCommand {
+    companion object {
+        fun from(command: ByteArray): SimpleLeaderRequestCommand {
+            require(command.isNotEmpty()) { "Command must not be empty" }
+
+            // Convert the first byte to a command type
+            val commandType = SimpleRequestCommandType.fromByte(command[0])
+
+            return when (commandType) {
+                SimpleRequestCommandType.GET -> {
+                    val key = command.copyOfRange(1, command.size)
+                    SimpleRequestGetCommand(key)
+                }
+
+                SimpleRequestCommandType.PUT -> {
+                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    val (key, value) = payload.split(":", limit = 2)
+                    SimpleRequestPutCommand(key.toByteArray(Charsets.UTF_8), value.toByteArray(Charsets.UTF_8))
+                }
+
+                SimpleRequestCommandType.DELETE -> {
+                    val key = command.copyOfRange(1, command.size)
+                    SimpleRequestDeleteCommand(key)
+                }
+
+                else -> throw IllegalArgumentException("Invalid command type for leader: $commandType")
+            }
+        }
+    }
+}
+
+/**
+ * Commands that are processed by the follower node.
+ */
+sealed interface SimpleFollowerRequestCommand : SimpleRequestCommand {
+    companion object {
+        fun from(command: ByteArray): SimpleFollowerRequestCommand {
+            require(command.isNotEmpty()) { "Command must not be empty" }
+
+            // Convert the first byte to a command type
+            val commandType = SimpleRequestCommandType.fromByte(command[0])
+
+            return when (commandType) {
+                SimpleRequestCommandType.HEARTBEAT -> {
+                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    val parts = payload.split(":", limit = 2)
+                    val term = parts[0].toLong()
+                    val leaderCommit = parts[1].toLong()
+                    SimpleRequestHeartbeatCommand(term, leaderCommit)
+                }
+
+                SimpleRequestCommandType.APPEND_ENTRIES -> {
+                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    val parts = payload.split(":", limit = 5)
+                    val term = parts[0].toLong()
+                    val prevLogIndex = parts[1].toLong()
+                    val prevLogTerm = parts[2].toLong()
+                    val leaderCommit = parts[3].toLong()
+                    val entriesJson = parts[4]
+                    SimpleRequestAppendEntriesCommand(term, prevLogIndex, prevLogTerm, entriesJson, leaderCommit)
+                }
+
+                else -> throw IllegalArgumentException("Invalid command type for follower: $commandType")
+            }
+        }
     }
 }
