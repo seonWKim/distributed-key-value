@@ -142,7 +142,14 @@ class SimpleNodeProxy(
         try {
             closeConnection()
             log.info("Connecting to node at $host:$port")
-            val newSocket = Socket(host, port)
+            val newSocket = Socket()
+            // Set connection timeout to 5 seconds
+            newSocket.connect(java.net.InetSocketAddress(host, port), 5000)
+            // Set socket timeout to 30 seconds (increased from default)
+            // This affects how long read operations will block
+            newSocket.soTimeout = 30000
+            // Set TCP keep-alive to true to prevent connection from being closed due to inactivity
+            newSocket.keepAlive = true
             socket = newSocket
             input = DataInputStream(newSocket.getInputStream())
             output = DataOutputStream(newSocket.getOutputStream())

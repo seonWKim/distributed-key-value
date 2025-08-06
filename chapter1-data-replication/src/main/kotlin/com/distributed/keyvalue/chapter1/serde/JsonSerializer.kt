@@ -2,6 +2,8 @@ package com.distributed.keyvalue.chapter1.serde
 
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
+import com.distributed.keyvalue.chapter1.store.LogEntry
+import com.distributed.keyvalue.chapter1.store.simple.SimpleLogEntry
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.SerializersModule

@@ -33,6 +33,10 @@ data class SimpleRequest(
         result = 31 * result + metadata.hashCode()
         return result
     }
+
+    override fun toString(): String {
+        return "SimpleRequest(id='$id', command=${command[0]}, timestamp=$timestamp, metadata=$metadata)"
+    }
 }
 
 /**
@@ -101,7 +105,8 @@ enum class SimpleRequestCommandType(val value: Byte) {
     PUT(1),
     DELETE(2),
     HEARTBEAT(3),
-    APPEND_ENTRIES(4);
+    APPEND_ENTRIES(4),
+    REGISTER_FOLLOWER(5);
     
     companion object {
         /**
@@ -219,6 +224,17 @@ data class SimpleRequestAppendEntriesCommand(
 }
 
 /**
+ * Command for registering a follower with the leader.
+ */
+data class SimpleRequestRegisterFollower(
+    val followerId: String
+) : SimpleFollowerRequestCommand {
+    override fun toString(): String {
+        return "SimpleRequestRegisterFollower(followerId=$followerId)"
+    }
+}
+
+/**
  * Commands that are processed by the leader node.
  */
 sealed interface SimpleLeaderRequestCommand : SimpleRequestCommand {
@@ -277,6 +293,11 @@ sealed interface SimpleFollowerRequestCommand : SimpleRequestCommand {
                     val leaderCommit = parts[3].toLong()
                     val entriesJson = parts[4]
                     SimpleRequestAppendEntriesCommand(term, prevLogIndex, prevLogTerm, entriesJson, leaderCommit)
+                }
+                
+                SimpleRequestCommandType.REGISTER_FOLLOWER -> {
+                    val followerId = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    SimpleRequestRegisterFollower(followerId)
                 }
 
                 else -> throw IllegalArgumentException("Invalid command type for follower: $commandType")

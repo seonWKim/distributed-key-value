@@ -8,6 +8,7 @@ import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.serde.JsonSerializer
 import com.distributed.keyvalue.chapter1.store.*
 import mu.KotlinLogging
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -23,7 +24,7 @@ class SimpleFollowerNode(
     private val keyValueStore: KeyValueStore,
     private val leaderHost: String? = null,
     private val leaderPort: Int? = null,
-    private val electionTimeoutMs: Long = 1000
+    private val electionTimeoutMs: Long = 10000
 ) : FollowerNode {
 
     private val log = KotlinLogging.logger { }
@@ -62,6 +63,9 @@ class SimpleFollowerNode(
                 proxy.start()
                 leader = proxy
                 log.info("Connected to leader at $leaderHost:$leaderPort")
+                
+                // Send register message to leader
+                sendRegisterMessage(proxy)
             } else {
                 log.warn("No leader host/port provided, will not connect to leader")
             }
@@ -103,6 +107,43 @@ class SimpleFollowerNode(
                 // Reset last heartbeat time to avoid immediate re-election
                 lastHeartbeatTime = currentTime
             }
+        }
+    }
+    
+    /**
+     * Sends a register message to the leader to register this follower.
+     *
+     * @param leaderProxy The proxy to the leader node
+     */
+    private fun sendRegisterMessage(leaderProxy: NodeProxy) {
+        try {
+            log.info("Sending register message to leader")
+            
+            // Create register command with this follower's ID
+            val commandBytes = ByteArray(1 + id.length)
+            commandBytes[0] = SimpleRequestCommandType.REGISTER_FOLLOWER.value
+            System.arraycopy(id.toByteArray(Charsets.UTF_8), 0, commandBytes, 1, id.length)
+            
+            // Create request with connection_info metadata
+            val request = SimpleRequest(
+                id = UUID.randomUUID().toString(),
+                command = commandBytes,
+                metadata = mapOf("connection_info" to id)
+            )
+            
+            // Send request to leader
+            leaderProxy.process(request).thenAccept { response ->
+                if (response.success) {
+                    log.info("Successfully registered with leader")
+                } else {
+                    log.error("Failed to register with leader: ${response.errorMessage}")
+                }
+            }.exceptionally { e ->
+                log.error("Error registering with leader", e)
+                null
+            }
+        } catch (e: Exception) {
+            log.error("Error creating register message", e)
         }
     }
     
@@ -200,20 +241,12 @@ class SimpleFollowerNode(
                     }
                 }
             } catch (e: IllegalArgumentException) {
-                // Not a follower command, so forward to leader
-                // TODO: handle GET request(quorum)
-                val proxy = leader
-                if (proxy != null) {
-                    log.info { "[SimpleFollowerNode] Redirect request to leader node"}
-                    return proxy.process(request)
-                }
-                
-                // If there's no leader proxy, return an error
+                log.info { "[SimpleFollowerNode] Error processing request: $request, e: $e" }
                 val response = SimpleResponse(
                     requestId = request.id,
                     result = null,
                     success = false,
-                    errorMessage = "No leader available",
+                    errorMessage = "Error occurred: $e",
                     metadata = emptyMap()
                 )
                 future.complete(response)

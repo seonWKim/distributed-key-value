@@ -28,7 +28,7 @@ class SimpleLeaderNode(
     override val wal: WriteAheadLog,
     followerProxies: List<NodeProxy> = emptyList(),
     private val keyValueStore: KeyValueStore,
-    private val heartbeatIntervalMs: Long = 100
+    private val heartbeatIntervalMs: Long = 2000
 ) : LeaderNode {
     
     // Use a mutable list for follower proxies
@@ -145,6 +145,105 @@ class SimpleLeaderNode(
         val future = CompletableFuture<Response>()
 
         try {
+            // Try to parse as SimpleFollowerRequestCommand first
+            try {
+                val followerCommand = SimpleFollowerRequestCommand.from(request.command)
+                
+                when (followerCommand) {
+                    is SimpleRequestRegisterFollower -> {
+                        log.info { "[SimpleLeaderNode] Handling register follower command: $followerCommand" }
+                        
+                        // Create a new proxy for the follower if it doesn't exist
+                        // We can't use the sender_proxy metadata because the proxy is not yet registered
+                        // Instead, we'll use the connection information from the request
+                        val connectionInfo = request.metadata["connection_info"]
+                        if (connectionInfo != null) {
+                            val parts = connectionInfo.split(":")
+                            if (parts.size == 2) {
+                                val host = parts[0]
+                                val port = parts[1].toInt()
+                                
+                                // Create a new proxy for the follower
+                                val newProxy = SimpleNodeProxy(host, port)
+                                newProxy.start()
+                                
+                                // Register the proxy
+                                registerFollowerProxy(newProxy)
+                                
+                                val response = SimpleResponse(
+                                    requestId = request.id,
+                                    result = null,
+                                    success = true,
+                                    errorMessage = null,
+                                    metadata = emptyMap()
+                                )
+                                future.complete(response)
+                            } else {
+                                val response = SimpleResponse(
+                                    requestId = request.id,
+                                    result = null,
+                                    success = false,
+                                    errorMessage = "Invalid connection_info format",
+                                    metadata = emptyMap()
+                                )
+                                future.complete(response)
+                            }
+                        } else {
+                            // For backward compatibility, try to use the follower ID directly
+                            try {
+                                // Use the follower ID as the connection info
+                                val followerId = followerCommand.followerId
+                                if (followerId.contains(":")) {
+                                    val parts = followerId.split(":")
+                                    val host = parts[0]
+                                    val port = parts[1].toInt()
+                                    
+                                    // Create a new proxy for the follower
+                                    val newProxy = SimpleNodeProxy(host, port)
+                                    newProxy.start()
+                                    
+                                    // Register the proxy
+                                    registerFollowerProxy(newProxy)
+                                    
+                                    val response = SimpleResponse(
+                                        requestId = request.id,
+                                        result = null,
+                                        success = true,
+                                        errorMessage = null,
+                                        metadata = emptyMap()
+                                    )
+                                    future.complete(response)
+                                } else {
+                                    val response = SimpleResponse(
+                                        requestId = request.id,
+                                        result = null,
+                                        success = false,
+                                        errorMessage = "Invalid follower ID format",
+                                        metadata = emptyMap()
+                                    )
+                                    future.complete(response)
+                                }
+                            } catch (e: Exception) {
+                                val response = SimpleResponse(
+                                    requestId = request.id,
+                                    result = null,
+                                    success = false,
+                                    errorMessage = "Error creating proxy: ${e.message}",
+                                    metadata = emptyMap()
+                                )
+                                future.complete(response)
+                            }
+                        }
+                        return future
+                    }
+                    else -> {
+                        // Not a follower command we handle, continue to leader command parsing
+                    }
+                }
+            } catch (e: Exception) {
+                // Not a follower command, continue to leader command parsing
+            }
+            
             // Parse request to SimpleLeaderRequestCommand
             val command = SimpleLeaderRequestCommand.from(request.command)
             var result: ByteArray? = null
@@ -244,9 +343,10 @@ class SimpleLeaderNode(
                 )
                 
                 // Convert to byte array
-                val commandBytes = ByteArray(1 + 100) // Rough estimate of size
-                commandBytes[0] = SimpleRequestCommandType.HEARTBEAT.value // Command type for heartbeat
                 val payload = "${heartbeatCommand.term}:${heartbeatCommand.leaderCommit}"
+                val payloadBytes = payload.toByteArray(Charsets.UTF_8)
+                val commandBytes = ByteArray(1 + payloadBytes.size)
+                commandBytes[0] = SimpleRequestCommandType.HEARTBEAT.value // Command type for heartbeat
                 System.arraycopy(payload.toByteArray(Charsets.UTF_8), 0, commandBytes, 1, payload.length)
                 
                 // Create request
