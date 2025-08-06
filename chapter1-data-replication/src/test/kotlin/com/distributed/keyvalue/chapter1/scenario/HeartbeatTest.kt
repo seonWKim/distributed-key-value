@@ -5,9 +5,9 @@ import com.distributed.keyvalue.chapter1.request.simple.SimpleRequest
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommandType
 import com.distributed.keyvalue.chapter1.store.Node
 import com.distributed.keyvalue.chapter1.store.NodeState
-import com.distributed.keyvalue.chapter1.store.simple.SimpleFollowerNode
+import com.distributed.keyvalue.chapter1.store.simple.follower.SimpleFollowerNode
 import com.distributed.keyvalue.chapter1.store.simple.SimpleInMemoryKeyValueStore
-import com.distributed.keyvalue.chapter1.store.simple.SimpleLeaderNode
+import com.distributed.keyvalue.chapter1.store.simple.leader.SimpleLeaderNode
 import com.distributed.keyvalue.chapter1.store.simple.SimpleNodeProxy
 import java.net.ServerSocket
 import java.util.*

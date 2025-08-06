@@ -1,8 +1,16 @@
-package com.distributed.keyvalue.chapter1.store.simple
+package com.distributed.keyvalue.chapter1.store.simple.leader
 
 import com.distributed.keyvalue.chapter1.request.Request
-import com.distributed.keyvalue.chapter1.request.simple.*
+import com.distributed.keyvalue.chapter1.request.simple.SimpleFollowerRequestCommand
 import com.distributed.keyvalue.chapter1.request.simple.SimpleLeaderRequestCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequest
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestAppendEntriesCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommandType
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestDeleteCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestGetCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestHeartbeatCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestPutCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestRegisterFollower
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.serde.JsonSerializer
@@ -12,6 +20,8 @@ import com.distributed.keyvalue.chapter1.store.LogEntry
 import com.distributed.keyvalue.chapter1.store.NodeProxy
 import com.distributed.keyvalue.chapter1.store.NodeState
 import com.distributed.keyvalue.chapter1.store.WriteAheadLog
+import com.distributed.keyvalue.chapter1.store.simple.SimpleLogEntry
+import com.distributed.keyvalue.chapter1.store.simple.SimpleNodeProxy
 import mu.KotlinLogging
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -30,7 +40,7 @@ class SimpleLeaderNode(
     private val keyValueStore: KeyValueStore,
     private val heartbeatIntervalMs: Long = 2000
 ) : LeaderNode {
-    
+
     // Use a mutable list for follower proxies
     private val _followerProxies = followerProxies.toMutableList()
     override val followerProxies: List<NodeProxy>
@@ -91,12 +101,12 @@ class SimpleLeaderNode(
     override fun start() {
         if (!running) {
             running = true
-            
+
             // Initialize replication indices
             followerProxies.forEach { proxy ->
                 followerReplicationIndices[proxy] = 0L
             }
-            
+
             // Schedule heartbeat task
             scheduler.scheduleAtFixedRate(
                 { sendHeartbeats() },
@@ -121,7 +131,7 @@ class SimpleLeaderNode(
             }
         }
     }
-    
+
     /**
      * Registers a new follower proxy with this leader.
      * This allows followers to connect to the leader after the leader has started.
@@ -130,7 +140,7 @@ class SimpleLeaderNode(
      */
     override fun registerFollowerProxy(proxy: NodeProxy) {
         log.info("Registering new follower proxy")
-        
+
         // Add the proxy to the list if it's not already there
         if (!_followerProxies.contains(proxy)) {
             _followerProxies.add(proxy)
@@ -147,12 +157,12 @@ class SimpleLeaderNode(
         try {
             // Try to parse as SimpleFollowerRequestCommand first
             try {
-                val followerCommand = SimpleFollowerRequestCommand.from(request.command)
-                
+                val followerCommand = SimpleFollowerRequestCommand.Companion.from(request.command)
+
                 when (followerCommand) {
                     is SimpleRequestRegisterFollower -> {
                         log.info { "[SimpleLeaderNode] Handling register follower command: $followerCommand" }
-                        
+
                         // Create a new proxy for the follower if it doesn't exist
                         // We can't use the sender_proxy metadata because the proxy is not yet registered
                         // Instead, we'll use the connection information from the request
@@ -162,14 +172,14 @@ class SimpleLeaderNode(
                             if (parts.size == 2) {
                                 val host = parts[0]
                                 val port = parts[1].toInt()
-                                
+
                                 // Create a new proxy for the follower
                                 val newProxy = SimpleNodeProxy(host, port)
                                 newProxy.start()
-                                
+
                                 // Register the proxy
                                 registerFollowerProxy(newProxy)
-                                
+
                                 val response = SimpleResponse(
                                     requestId = request.id,
                                     result = null,
@@ -197,14 +207,14 @@ class SimpleLeaderNode(
                                     val parts = followerId.split(":")
                                     val host = parts[0]
                                     val port = parts[1].toInt()
-                                    
+
                                     // Create a new proxy for the follower
                                     val newProxy = SimpleNodeProxy(host, port)
                                     newProxy.start()
-                                    
+
                                     // Register the proxy
                                     registerFollowerProxy(newProxy)
-                                    
+
                                     val response = SimpleResponse(
                                         requestId = request.id,
                                         result = null,
@@ -243,11 +253,11 @@ class SimpleLeaderNode(
             } catch (e: Exception) {
                 // Not a follower command, continue to leader command parsing
             }
-            
+
             // Parse request to SimpleLeaderRequestCommand
-            val command = SimpleLeaderRequestCommand.from(request.command)
+            val command = SimpleLeaderRequestCommand.Companion.from(request.command)
             var result: ByteArray? = null
-            
+
             when (command) {
                 is SimpleRequestGetCommand -> {
                     result = keyValueStore.get(command.key)
@@ -341,14 +351,14 @@ class SimpleLeaderNode(
                     term = currentTerm,
                     leaderCommit = highWatermark
                 )
-                
+
                 // Convert to byte array
                 val payload = "${heartbeatCommand.term}:${heartbeatCommand.leaderCommit}"
                 val payloadBytes = payload.toByteArray(Charsets.UTF_8)
                 val commandBytes = ByteArray(1 + payloadBytes.size)
                 commandBytes[0] = SimpleRequestCommandType.HEARTBEAT.value // Command type for heartbeat
                 System.arraycopy(payload.toByteArray(Charsets.UTF_8), 0, commandBytes, 1, payload.length)
-                
+
                 // Create request
                 val request = SimpleRequest(
                     id = UUID.randomUUID().toString(),
@@ -357,7 +367,7 @@ class SimpleLeaderNode(
                     metadata = emptyMap()
                 )
                 log.info { "[SimpleLeaderNode] Sending heartbeats: $request" }
-                
+
                 // Send request to follower
                 followerProxy.process(request)
                     .exceptionally { e ->
@@ -399,9 +409,9 @@ class SimpleLeaderNode(
                 }
 
                 // Convert entries to JSON for transmission
-                val entriesJsonBytes = JsonSerializer.serialize(entries)
+                val entriesJsonBytes = JsonSerializer.Companion.serialize(entries)
                 val entriesJsonString = String(entriesJsonBytes, Charsets.UTF_8)
-                
+
                 // Create an appendEntries request
                 val appendEntriesCommand = SimpleRequestAppendEntriesCommand(
                     term = currentTerm,
@@ -410,13 +420,13 @@ class SimpleLeaderNode(
                     entriesJson = entriesJsonString,
                     leaderCommit = highWatermark
                 )
-                
+
                 // Convert to byte array
                 val commandBytes = ByteArray(1 + 1000) // Rough estimate of size
                 commandBytes[0] = SimpleRequestCommandType.APPEND_ENTRIES.value // Command type for appendEntries
                 val payload = "${appendEntriesCommand.term}:${appendEntriesCommand.prevLogIndex}:${appendEntriesCommand.prevLogTerm}:${appendEntriesCommand.leaderCommit}:${appendEntriesCommand.entriesJson}"
                 System.arraycopy(payload.toByteArray(Charsets.UTF_8), 0, commandBytes, 1, payload.length)
-                
+
                 // Create request
                 val request = SimpleRequest(
                     id = UUID.randomUUID().toString(),
@@ -424,7 +434,7 @@ class SimpleLeaderNode(
                     timestamp = System.currentTimeMillis(),
                     metadata = emptyMap()
                 )
-                
+
                 // Send request to follower
                 followerProxy.process(request)
                     .thenAccept { response ->

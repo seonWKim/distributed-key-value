@@ -1,12 +1,22 @@
-package com.distributed.keyvalue.chapter1.store.simple
+package com.distributed.keyvalue.chapter1.store.simple.follower
 
 import com.distributed.keyvalue.chapter1.request.Request
-import com.distributed.keyvalue.chapter1.request.simple.*
 import com.distributed.keyvalue.chapter1.request.simple.SimpleFollowerRequestCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequest
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestAppendEntriesCommand
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommandType
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestHeartbeatCommand
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.serde.JsonSerializer
-import com.distributed.keyvalue.chapter1.store.*
+import com.distributed.keyvalue.chapter1.store.FollowerNode
+import com.distributed.keyvalue.chapter1.store.KeyValueStore
+import com.distributed.keyvalue.chapter1.store.LogEntry
+import com.distributed.keyvalue.chapter1.store.NodeProxy
+import com.distributed.keyvalue.chapter1.store.NodeState
+import com.distributed.keyvalue.chapter1.store.WriteAheadLog
+import com.distributed.keyvalue.chapter1.store.simple.SimpleLogEntry
+import com.distributed.keyvalue.chapter1.store.simple.SimpleNodeProxy
 import mu.KotlinLogging
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -31,23 +41,23 @@ class SimpleFollowerNode(
 
     override var currentTerm: Long = 0
         private set
-    
+
     // Use a mutable state variable
     private var nodeState: NodeState = NodeState.FOLLOWER
     override val state: NodeState
         get() = nodeState
-    
+
     // Reference to the leader proxy for forwarding requests
     override var leader: NodeProxy? = null
-    
+
     override var lastHeartbeatTime: Long = System.currentTimeMillis()
-    
+
     private var commitIndex: Long = 0
     private var running: Boolean = false
-    
+
     // Timer for checking election timeout
     private val electionTimer: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
-    
+
     override fun start() {
         if (!running) {
             running = true
@@ -63,7 +73,7 @@ class SimpleFollowerNode(
                 proxy.start()
                 leader = proxy
                 log.info("Connected to leader at $leaderHost:$leaderPort")
-                
+
                 // Send register message to leader
                 sendRegisterMessage(proxy)
             } else {
@@ -74,42 +84,42 @@ class SimpleFollowerNode(
             electionTimer.scheduleAtFixedRate({
                 checkElectionTimeout()
             }, electionTimeoutMs / 2, electionTimeoutMs / 2, TimeUnit.MILLISECONDS)
-            
+
             log.info("Started election timeout timer with interval ${electionTimeoutMs / 2}ms")
         }
     }
-    
+
     /**
      * Checks if the time since the last heartbeat exceeds the election timeout.
      * If it does, transitions to CANDIDATE state.
      */
     private fun checkElectionTimeout() {
         if (!running) return
-        
+
         val currentTime = System.currentTimeMillis()
         val timeSinceLastHeartbeat = currentTime - lastHeartbeatTime
-        
+
         if (timeSinceLastHeartbeat > electionTimeoutMs) {
             log.info("Election timeout: No heartbeat received for ${timeSinceLastHeartbeat}ms (timeout: ${electionTimeoutMs}ms)")
-            
+
             // Transition to CANDIDATE state
             if (nodeState == NodeState.FOLLOWER) {
                 log.info("Transitioning from FOLLOWER to CANDIDATE state")
                 nodeState = NodeState.CANDIDATE
-                
+
                 // In a real implementation, we would start an election here
                 // For now, we'll just log the transition
                 log.info("Node $id is now a candidate for term ${currentTerm + 1}")
-                
+
                 // Increment term
                 currentTerm++
-                
+
                 // Reset last heartbeat time to avoid immediate re-election
                 lastHeartbeatTime = currentTime
             }
         }
     }
-    
+
     /**
      * Sends a register message to the leader to register this follower.
      *
@@ -118,19 +128,19 @@ class SimpleFollowerNode(
     private fun sendRegisterMessage(leaderProxy: NodeProxy) {
         try {
             log.info("Sending register message to leader")
-            
+
             // Create register command with this follower's ID
             val commandBytes = ByteArray(1 + id.length)
             commandBytes[0] = SimpleRequestCommandType.REGISTER_FOLLOWER.value
             System.arraycopy(id.toByteArray(Charsets.UTF_8), 0, commandBytes, 1, id.length)
-            
+
             // Create request with connection_info metadata
             val request = SimpleRequest(
                 id = UUID.randomUUID().toString(),
                 command = commandBytes,
                 metadata = mapOf("connection_info" to id)
             )
-            
+
             // Send request to leader
             leaderProxy.process(request).thenAccept { response ->
                 if (response.success) {
@@ -146,18 +156,18 @@ class SimpleFollowerNode(
             log.error("Error creating register message", e)
         }
     }
-    
+
     override fun stop() {
         if (running) {
             running = false
-            
+
             // Stop the leader proxy if it exists
             leader?.let {
                 log.info("Stopping connection to leader")
                 it.stop()
                 leader = null
             }
-            
+
             // Stop the election timer
             try {
                 log.info("Stopping election timer")
@@ -171,15 +181,15 @@ class SimpleFollowerNode(
             }
         }
     }
-    
+
     override fun process(request: Request): CompletableFuture<Response> {
         val future = CompletableFuture<Response>()
 
         try {
             // Try to parse as a follower command first
             try {
-                val command = SimpleFollowerRequestCommand.from(request.command)
-                
+                val command = SimpleFollowerRequestCommand.Companion.from(request.command)
+
                 when (command) {
                     // Handle heartbeat requests from the leader
                     is SimpleRequestHeartbeatCommand -> {
@@ -195,12 +205,12 @@ class SimpleFollowerNode(
                         future.complete(response)
                         return future
                     }
-                    
+
                     // Handle appendEntries requests from the leader
                     is SimpleRequestAppendEntriesCommand -> {
                         // Deserialize entries from JSON
                         val entriesJsonBytes = command.entriesJson.toByteArray(Charsets.UTF_8)
-                        val entries = JsonSerializer.deserialize<List<SimpleLogEntry>>(entriesJsonBytes)
+                        val entries = JsonSerializer.Companion.deserialize<List<SimpleLogEntry>>(entriesJsonBytes)
                         log.info { "[SimpleFollowerNode] Handling request append entries command: $entries"}
                         val success = appendEntries(
                             term = command.term,
@@ -209,7 +219,7 @@ class SimpleFollowerNode(
                             entries = entries,
                             leaderCommit = command.leaderCommit
                         )
-                        
+
                         val response = SimpleResponse(
                             requestId = request.id,
                             result = null,
@@ -262,28 +272,28 @@ class SimpleFollowerNode(
             )
             future.complete(response)
         }
-        
+
         return future
     }
-    
+
     override fun processHeartbeat(term: Long, leaderCommit: Long): Boolean {
         // Update last heartbeat time
         lastHeartbeatTime = System.currentTimeMillis()
-        
+
         // If the term is greater than our current term, update our term
         if (term > currentTerm) {
             currentTerm = term
         }
-        
+
         // If the leader's commit index is greater than ours, update our commit index
         if (leaderCommit > commitIndex) {
             commitIndex = minOf(leaderCommit, wal.getLastPosition())
             // In a real implementation, we would apply committed entries to the state machine
         }
-        
+
         return term >= currentTerm
     }
-    
+
     override fun appendEntries(
         term: Long,
         prevLogIndex: Long,
@@ -293,17 +303,17 @@ class SimpleFollowerNode(
     ): Boolean {
         // Update last heartbeat time
         lastHeartbeatTime = System.currentTimeMillis()
-        
+
         // If the term is less than our current term, reject the request
         if (term < currentTerm) {
             return false
         }
-        
+
         // If the term is greater than our current term, update our term
         if (term > currentTerm) {
             currentTerm = term
         }
-        
+
         // Check if we have the previous log entry
         if (prevLogIndex >= 0) {
             val prevEntries = wal.read(prevLogIndex, 1)
@@ -311,7 +321,7 @@ class SimpleFollowerNode(
                 return false
             }
         }
-        
+
         // Append new entries
         for (entry in entries) {
             // Check if we already have an entry at this index
@@ -323,17 +333,17 @@ class SimpleFollowerNode(
                     // For simplicity, we'll just append the new entry, which will overwrite the existing one
                 }
             }
-            
+
             // Append the entry
             wal.append(entry)
         }
-        
+
         // Update commit index
         if (leaderCommit > commitIndex) {
             commitIndex = minOf(leaderCommit, wal.getLastPosition())
             // In a real implementation, we would apply committed entries to the state machine
         }
-        
+
         return true
     }
 }

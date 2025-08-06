@@ -4,10 +4,10 @@ import com.distributed.keyvalue.chapter1.request.Request
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequest
 import com.distributed.keyvalue.chapter1.serde.JsonSerializer
 import com.distributed.keyvalue.chapter1.store.Node
-import com.distributed.keyvalue.chapter1.store.simple.SimpleFollowerNode
+import com.distributed.keyvalue.chapter1.store.simple.follower.SimpleFollowerNode
 import com.distributed.keyvalue.chapter1.store.simple.SimpleInMemoryKeyValueStore
 import com.distributed.keyvalue.chapter1.store.simple.SimpleInMemoryWAL
-import com.distributed.keyvalue.chapter1.store.simple.SimpleLeaderNode
+import com.distributed.keyvalue.chapter1.store.simple.leader.SimpleLeaderNode
 import mu.KotlinLogging
 import java.io.DataInputStream
 import java.io.DataOutputStream
