@@ -1,4 +1,4 @@
-package com.distributed.keyvalue.chapter1.store.simple.follower
+package com.distributed.keyvalue.chapter1.store.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
 import com.distributed.keyvalue.chapter1.request.simple.SimpleFollowerRequestCommand
@@ -15,8 +15,6 @@ import com.distributed.keyvalue.chapter1.store.LogEntry
 import com.distributed.keyvalue.chapter1.store.NodeProxy
 import com.distributed.keyvalue.chapter1.store.NodeState
 import com.distributed.keyvalue.chapter1.store.WriteAheadLog
-import com.distributed.keyvalue.chapter1.store.simple.SimpleLogEntry
-import com.distributed.keyvalue.chapter1.store.simple.SimpleNodeProxy
 import mu.KotlinLogging
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
