@@ -16,9 +16,10 @@ class SimpleInMemoryWAL : WriteAheadLog {
     }
 
     override fun read(fromPosition: Long, maxEntries: Int): List<LogEntry> {
+        val endPosition = minOf(fromPosition + maxEntries.toLong(), entries.size.toLong())
         return entries.subList(
             fromPosition.toInt(),
-            minOf(fromPosition.toInt() + maxEntries, entries.size)
+            endPosition.toInt()
         )
     }
 
