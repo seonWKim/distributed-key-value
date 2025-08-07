@@ -403,7 +403,7 @@ class SimpleLeaderNode(
                 }
 
                 // Convert entries to JSON for transmission
-                val entriesJsonBytes = JsonSerializer.Companion.serialize(entries)
+                val entriesJsonBytes = JsonSerializer.serialize(entries)
                 val entriesJsonString = String(entriesJsonBytes, Charsets.UTF_8)
 
                 // Create an appendEntries request
@@ -421,7 +421,6 @@ class SimpleLeaderNode(
                 commandBytes[0] = SimpleRequestCommandType.APPEND_ENTRIES.value
                 System.arraycopy(payloadBytes, 0, commandBytes, 1, payloadBytes.size)
 
-                // Create request
                 val request = SimpleRequest(
                     id = UUID.randomUUID().toString(),
                     command = commandBytes,
@@ -429,12 +428,10 @@ class SimpleLeaderNode(
                     metadata = emptyMap()
                 )
 
-                // Send request to follower
                 followerProxy.process(request)
                     .thenAccept { response ->
                         val success = response.success
                         if (success) {
-                            // Update the replication index for this follower
                             followerReplicationIndices[followerProxy] = fromPosition + entries.size - 1
                         }
                         followerFuture.complete(success)

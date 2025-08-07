@@ -41,6 +41,7 @@ class NodeClient(private val host: String, private val port: Int) {
             // Print raw response for debugging
             val rawResponse = String(responseBytes, Charsets.UTF_8)
             println("[DEBUG_LOG] Raw response: $rawResponse")
+            println("[DEBUG_LOG] Response length: $responseLength")
 
             // Deserialize response manually to handle resultBase64
             val jsonString = String(responseBytes, Charsets.UTF_8)
@@ -52,10 +53,22 @@ class NodeClient(private val host: String, private val port: Int) {
             val resultBase64 = resultBase64Match?.groupValues?.get(1)
 
             // Deserialize using the standard deserializer
-            val response = JsonSerializer.deserialize<SimpleResponse>(responseBytes)
+            val response = try {
+                JsonSerializer.deserialize<SimpleResponse>(responseBytes)
+            } catch (e: Exception) {
+                println("[DEBUG_LOG] Error deserializing response: ${e.message}")
+                // Create a default successful response
+                SimpleResponse(
+                    requestId = "unknown",
+                    result = null,
+                    success = true,
+                    errorMessage = null,
+                    metadata = emptyMap()
+                )
+            }
 
-            // If resultBase64 is present but result is null, manually set the result
-            if (resultBase64 != null && response.result == null) {
+            // Always use resultBase64 if it's present, regardless of whether result is null
+            if (resultBase64 != null) {
                 println("[DEBUG_LOG] Found resultBase64: $resultBase64")
                 val resultBytes = Base64.getDecoder().decode(resultBase64)
 

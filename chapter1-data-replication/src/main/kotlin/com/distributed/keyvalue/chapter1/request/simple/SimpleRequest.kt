@@ -283,6 +283,22 @@ sealed interface SimpleFollowerRequestCommand : SimpleRequestCommand {
 
             // Convert the first byte to a command type
             return when (val commandType = SimpleRequestCommandType.fromByte(command[0])) {
+                SimpleRequestCommandType.GET -> {
+                    val key = command.copyOfRange(1, command.size)
+                    SimpleRequestGetCommand(key)
+                }
+
+                SimpleRequestCommandType.PUT -> {
+                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    val (key, value) = payload.split(":", limit = 2)
+                    SimpleRequestPutCommand(key.toByteArray(Charsets.UTF_8), value.toByteArray(Charsets.UTF_8))
+                }
+
+                SimpleRequestCommandType.DELETE -> {
+                    val key = command.copyOfRange(1, command.size)
+                    SimpleRequestDeleteCommand(key)
+                }
+
                 SimpleRequestCommandType.HEARTBEAT -> {
                     val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
                     val parts = payload.split(":", limit = 2)

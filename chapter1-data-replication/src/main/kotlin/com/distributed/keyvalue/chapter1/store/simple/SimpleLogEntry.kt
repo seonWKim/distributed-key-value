@@ -16,7 +16,7 @@ data class SimpleLogEntry(
     override val metadata: Map<String, String>
 ) : LogEntry {
     @Serializable
-    private val dataBase64: String? = data.let {
+    val dataBase64: String? = data.let {
         java.util.Base64.getEncoder().encodeToString(it)
     }
 

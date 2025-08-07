@@ -23,7 +23,7 @@ data class SimpleResponse(
     // We need to store the result as a string for serialization
     // since ByteArray is not directly serializable
     @Serializable
-    private val resultBase64: String? = result?.let { 
+    val resultBase64: String? = result?.let {
         java.util.Base64.getEncoder().encodeToString(it) 
     }
     
