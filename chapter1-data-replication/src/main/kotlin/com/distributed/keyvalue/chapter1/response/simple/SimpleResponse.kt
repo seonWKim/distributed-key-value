@@ -28,7 +28,7 @@ data class SimpleResponse(
     }
     
     /**
-     * Constructor that takes a resultBase64 string and converts it to a ByteArray
+     * Constructor that takes a [resultBase64] string and converts it to a ByteArray
      */
     constructor(
         requestId: String,

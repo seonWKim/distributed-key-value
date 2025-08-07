@@ -18,22 +18,6 @@ import kotlin.reflect.KClass
  * Note: Classes that need to be serialized/deserialized must be annotated with @Serializable
  */
 class JsonSerializer : Serializer {
-    // Create a SerializersModule for polymorphic serialization
-    private val responseModule = SerializersModule {
-        polymorphic(Response::class) {
-            subclass(SimpleResponse::class)
-        }
-    }
-    
-    // Configure JSON serializer with pretty printing, lenient mode, and the SerializersModule
-    private val json = Json {
-        prettyPrint = false
-        isLenient = true
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-        serializersModule = responseModule
-    }
-
     /**
      * Serializes an object to a ByteArray using JSON.
      * Note: This method uses reflection and may not work with all types.
@@ -107,6 +91,15 @@ class JsonSerializer : Serializer {
      * Provides a companion object with extension functions for inline reified type parameters.
      */
     companion object {
+        val module = SerializersModule {
+            polymorphic(Response::class) {
+                subclass(SimpleResponse::class)
+            }
+            polymorphic(LogEntry::class) {
+                subclass(SimpleLogEntry::class)
+            }
+        }
+
         /**
          * Serializes an object to a ByteArray using JSON with a reified type parameter.
          *
@@ -114,13 +107,6 @@ class JsonSerializer : Serializer {
          * @return The serialized object as a ByteArray
          */
         inline fun <reified T> serialize(obj: T): ByteArray {
-            // Create a SerializersModule for polymorphic serialization
-            val module = SerializersModule {
-                polymorphic(Response::class) {
-                    subclass(SimpleResponse::class)
-                }
-            }
-            
             val json = Json {
                 prettyPrint = false
                 isLenient = true
@@ -138,13 +124,6 @@ class JsonSerializer : Serializer {
          * @return The deserialized object
          */
         inline fun <reified T> deserialize(bytes: ByteArray): T {
-            // Create a SerializersModule for polymorphic serialization
-            val module = SerializersModule {
-                polymorphic(Response::class) {
-                    subclass(SimpleResponse::class)
-                }
-            }
-            
             val json = Json {
                 prettyPrint = false
                 isLenient = true

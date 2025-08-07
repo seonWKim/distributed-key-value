@@ -1,6 +1,7 @@
 package com.distributed.keyvalue.chapter1.request.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommandType.Companion.fromByte
 
 /**
  * Simple implementation of the Request interface.
@@ -35,7 +36,8 @@ data class SimpleRequest(
     }
 
     override fun toString(): String {
-        return "SimpleRequest(id='$id', command=${command[0]}, timestamp=$timestamp, metadata=$metadata)"
+        val command = runCatching { SimpleRequestCommandType.fromByte(command[0]).name }.getOrElse { "UNKNOWN" }
+        return "SimpleRequest(id='$id', command=${command}, timestamp=$timestamp, metadata=$metadata)"
     }
 }
 
@@ -228,7 +230,7 @@ data class SimpleRequestAppendEntriesCommand(
  */
 data class SimpleRequestRegisterFollower(
     val followerId: String
-) : SimpleFollowerRequestCommand {
+) : SimpleLeaderRequestCommand {
     override fun toString(): String {
         return "SimpleRequestRegisterFollower(followerId=$followerId)"
     }
@@ -258,6 +260,11 @@ sealed interface SimpleLeaderRequestCommand : SimpleRequestCommand {
                 SimpleRequestCommandType.DELETE -> {
                     val key = command.copyOfRange(1, command.size)
                     SimpleRequestDeleteCommand(key)
+                }
+
+                SimpleRequestCommandType.REGISTER_FOLLOWER -> {
+                    val followerId = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    SimpleRequestRegisterFollower(followerId)
                 }
 
                 else -> throw IllegalArgumentException("Invalid command type for leader: $commandType")
@@ -293,11 +300,6 @@ sealed interface SimpleFollowerRequestCommand : SimpleRequestCommand {
                     val leaderCommit = parts[3].toLong()
                     val entriesJson = parts[4]
                     SimpleRequestAppendEntriesCommand(term, prevLogIndex, prevLogTerm, entriesJson, leaderCommit)
-                }
-                
-                SimpleRequestCommandType.REGISTER_FOLLOWER -> {
-                    val followerId = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
-                    SimpleRequestRegisterFollower(followerId)
                 }
 
                 else -> throw IllegalArgumentException("Invalid command type for follower: $commandType")
