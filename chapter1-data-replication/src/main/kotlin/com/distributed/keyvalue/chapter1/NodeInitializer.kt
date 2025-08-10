@@ -93,7 +93,7 @@ class NodeInitializer {
                                 val length = try {
                                     input.readInt()
                                 } catch (e: EOFException) {
-                                    log.info("Client closed connection")
+                                    log.info("Error reading request length: $e")
                                     break
                                 }
                                 
