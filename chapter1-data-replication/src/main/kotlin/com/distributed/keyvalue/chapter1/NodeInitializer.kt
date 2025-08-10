@@ -103,7 +103,7 @@ class NodeInitializer {
                                     continue
                                 }
                                 
-                                if (length < 0 || length > 10_000) {
+                                if (length !in 0..10_000) {
                                     log.warn("Invalid request length: $length")
                                     break
                                 }
