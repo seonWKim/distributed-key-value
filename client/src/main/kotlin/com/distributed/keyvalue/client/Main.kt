@@ -6,6 +6,8 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.net.Socket
 import java.util.*
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 private val log = KotlinLogging.logger {}
 
@@ -40,34 +42,52 @@ fun main(args: Array<String>) {
             log.info("Connected to node at $host:$port")
             log.info("Enter commands (GET <key>, PUT <key>:<value>, DELETE <key>, EXIT)")
 
-            val scanner = Scanner(System.`in`)
-            while (true) {
-                print("> ")
-                val line = scanner.nextLine().trim()
-
-                if (line.equals("EXIT", ignoreCase = true)) {
-                    log.info("Exiting client...")
-                    break
-                }
-
+            // Set up a scheduled executor to send heartbeat pings
+            val scheduler = Executors.newSingleThreadScheduledExecutor()
+            scheduler.scheduleAtFixedRate({
                 try {
-                    val commandBytes = parseCommand(line)
-                    if (commandBytes != null) {
-                        output.writeInt(commandBytes.size)
-                        output.write(commandBytes)
-                        output.flush()
-
-                        // Read the response
-                        val responseLength = input.readInt()
-                        val responseBytes = ByteArray(responseLength)
-                        input.readFully(responseBytes)
-                        val responseString = String(responseBytes, Charsets.UTF_8)
-
-                        println(responseString)
-                    }
+                    // Send a heartbeat with length 0
+                    output.writeInt(0)
+                    output.flush()
+                    log.debug("Sent heartbeat ping")
+                    // No response is expected for zero-length heartbeats
                 } catch (e: Exception) {
-                    log.error("Error processing command: ${e.message}")
+                    log.error("Error sending heartbeat: ${e.message}", e)
                 }
+            }, 10, 30, TimeUnit.SECONDS) // Initial delay 10s, then every 30s
+
+            val scanner = Scanner(System.`in`)
+            try {
+                while (true) {
+                    print("> ")
+                    val line = scanner.nextLine().trim()
+
+                    if (line.equals("EXIT", ignoreCase = true)) {
+                        log.info("Exiting client...")
+                        break
+                    }
+
+                    try {
+                        val commandBytes = parseCommand(line)
+                        if (commandBytes != null) {
+                            output.writeInt(commandBytes.size)
+                            output.write(commandBytes)
+                            output.flush()
+
+                            // Read the response
+                            val responseLength = input.readInt()
+                            val responseBytes = ByteArray(responseLength)
+                            input.readFully(responseBytes)
+                            val responseString = String(responseBytes, Charsets.UTF_8)
+                            println(responseString)
+                        }
+                    } catch (e: Exception) {
+                        log.error("Error processing command: ${e}")
+                    }
+                }
+            } finally {
+                // Shutdown the scheduler when exiting
+                scheduler.shutdown()
             }
         }
     } catch (e: Exception) {
@@ -90,6 +110,7 @@ fun parseArguments(args: Array<String>): Map<String, String> {
     }
     return arguments
 }
+
 
 /**
  * Parses a command string into a binary command.

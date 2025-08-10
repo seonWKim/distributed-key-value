@@ -366,6 +366,7 @@ class SimpleLeaderNode(
     }
 
     override fun replicateLog(fromPosition: Long): CompletableFuture<Void> {
-        TODO()
+        // TODO
+        return CompletableFuture.completedFuture(null)
     }
 }

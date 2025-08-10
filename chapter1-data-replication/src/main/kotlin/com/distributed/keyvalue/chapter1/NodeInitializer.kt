@@ -121,6 +121,8 @@ class NodeInitializer {
                                 
                                 val responseBytes = JsonSerializer.serialize(response)
                                 output.writeInt(responseBytes.size)
+                                println("writing response of size: ${responseBytes.size}")
+                                println("writing: ${String(responseBytes, Charsets.UTF_8)}")
                                 output.write(responseBytes)
                                 output.flush()
                             }
