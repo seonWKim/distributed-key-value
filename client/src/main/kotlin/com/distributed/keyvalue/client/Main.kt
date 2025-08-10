@@ -1,5 +1,6 @@
 package com.distributed.keyvalue.client
 
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommandType
 import mu.KotlinLogging
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -109,7 +110,7 @@ fun parseCommand(command: String): ByteArray? {
         "GET" -> {
             val keyBytes = payload.toByteArray(Charsets.UTF_8)
             val result = ByteArray(1 + keyBytes.size)
-            result[0] = 0 // GET command type
+            result[0] = SimpleRequestCommandType.GET.value
             System.arraycopy(keyBytes, 0, result, 1, keyBytes.size)
             result
         }
@@ -120,14 +121,14 @@ fun parseCommand(command: String): ByteArray? {
             }
             val payloadBytes = payload.toByteArray(Charsets.UTF_8)
             val result = ByteArray(1 + payloadBytes.size)
-            result[0] = 1 // PUT command type
+            result[0] = SimpleRequestCommandType.PUT.value
             System.arraycopy(payloadBytes, 0, result, 1, payloadBytes.size)
             result
         }
         "DELETE" -> {
             val keyBytes = payload.toByteArray(Charsets.UTF_8)
             val result = ByteArray(1 + keyBytes.size)
-            result[0] = 2 // DELETE command type
+            result[0] = SimpleRequestCommandType.DELETE.value
             System.arraycopy(keyBytes, 0, result, 1, keyBytes.size)
             result
         }

@@ -8,6 +8,8 @@ dependencies {
     api("io.github.microutils:kotlin-logging:2.0.4")
     api("org.slf4j:slf4j-simple:1.7.29")
 
+    api(project(":chapter1-data-replication"))
+
     implementation(kotlin("stdlib"))
     testImplementation(kotlin("test"))
 }
