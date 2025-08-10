@@ -19,10 +19,10 @@ interface FollowerNode : Node {
      * Processes a heartbeat from the leader.
      *
      * @param term The current term of the leader
-     * @param leaderCommit The commit position of the leader
+     * @param highWatermark The commit position of the leader
      * @return True if the heartbeat was accepted, false otherwise
      */
-    fun processHeartbeat(term: Long, leaderCommit: Long): Boolean
+    fun processHeartbeat(term: Long, highWatermark: Long): Boolean
 
     /**
      * Processes append entries request from the leader.

@@ -1,6 +1,7 @@
 package com.distributed.keyvalue.chapter1.scenario
 
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequest
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommandType
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
 import com.distributed.keyvalue.chapter1.serde.JsonSerializer
 import java.io.DataInputStream
@@ -20,14 +21,7 @@ class NodeClient(private val host: String, private val port: Int) {
         try {
             // Send request
             val commandBytes = request.command
-            println("[DEBUG_LOG] Sending request: ${request.id}, command type: ${commandBytes[0]}")
-            if (commandBytes[0].toInt() == 0) { // GET
-                println("[DEBUG_LOG] GET key: ${String(commandBytes.copyOfRange(1, commandBytes.size), Charsets.UTF_8)}")
-            } else if (commandBytes[0].toInt() == 1) { // PUT
-                val payload = String(commandBytes.copyOfRange(1, commandBytes.size), Charsets.UTF_8)
-                val parts = payload.split(":", limit = 2)
-                println("[DEBUG_LOG] PUT key: ${parts[0]}, value: ${parts[1]}")
-            }
+            println("[DEBUG_LOG] Sending request: ${request.id}, command type: ${SimpleRequestCommandType.fromByte(commandBytes[0])}")
 
             output.writeInt(commandBytes.size)
             output.write(commandBytes)

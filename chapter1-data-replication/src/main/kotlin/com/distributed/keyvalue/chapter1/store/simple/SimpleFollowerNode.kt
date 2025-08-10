@@ -5,6 +5,7 @@ import com.distributed.keyvalue.chapter1.request.simple.SimpleFollowerRequestCom
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequest
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestAppendEntriesCommand
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommandType
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestGetCommand
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestHeartbeatCommand
 import com.distributed.keyvalue.chapter1.response.Response
 import com.distributed.keyvalue.chapter1.response.simple.SimpleResponse
@@ -184,15 +185,14 @@ class SimpleFollowerNode(
         val future = CompletableFuture<Response>()
 
         try {
-            // Try to parse as a follower command first
             try {
-                val command = SimpleFollowerRequestCommand.Companion.from(request.command)
+                val command = SimpleFollowerRequestCommand.from(request.command)
 
                 when (command) {
                     // Handle heartbeat requests from the leader
                     is SimpleRequestHeartbeatCommand -> {
                         log.info { "[SimpleFollowerNode] Handling heartbeat command: $command" }
-                        val success = processHeartbeat(command.term, command.leaderCommit)
+                        val success = processHeartbeat(command.term, command.highWaterMark)
                         val response = SimpleResponse(
                             requestId = request.id,
                             result = null,
@@ -204,11 +204,9 @@ class SimpleFollowerNode(
                         return future
                     }
 
-                    // Handle appendEntries requests from the leader
                     is SimpleRequestAppendEntriesCommand -> {
-                        // Deserialize entries from JSON
                         val entriesJsonBytes = command.entriesJson.toByteArray(Charsets.UTF_8)
-                        val entries = JsonSerializer.Companion.deserialize<List<SimpleLogEntry>>(entriesJsonBytes)
+                        val entries = JsonSerializer.deserialize<List<SimpleLogEntry>>(entriesJsonBytes)
                         log.info { "[SimpleFollowerNode] Handling request append entries command: $entries"}
                         val success = appendEntries(
                             term = command.term,
@@ -229,8 +227,23 @@ class SimpleFollowerNode(
                         return future
                     }
 
+                    // TODO: should read from at least 2 nodes
+                    is SimpleRequestGetCommand -> {
+                        val result = keyValueStore.get(command.key)
+                        val response = SimpleResponse(
+                            requestId = request.id,
+                            result = result,
+                            success = true,
+                            errorMessage = null,
+                            metadata = emptyMap()
+                        )
+                        future.complete(response)
+                        log.info { "[SimpleFollowerNode] Handle GET Request(key = ${command.key.toString(Charsets.UTF_8)}, value = ${result?.toString(Charsets.UTF_8)})"
+                        }
+                        return future
+                    }
+
                     else -> {
-                        // TODO: handle GET request(quorum)
                         val proxy = leader
                         if (proxy != null) {
                             log.info { "[SimpleFollowerNode] Redirect request to leader node"}
@@ -274,7 +287,7 @@ class SimpleFollowerNode(
         return future
     }
 
-    override fun processHeartbeat(term: Long, leaderCommit: Long): Boolean {
+    override fun processHeartbeat(term: Long, highWatermark: Long): Boolean {
         // Update last heartbeat time
         lastHeartbeatTime = System.currentTimeMillis()
 
@@ -284,9 +297,15 @@ class SimpleFollowerNode(
         }
 
         // If the leader's commit index is greater than ours, update our commit index
-        if (leaderCommit > commitIndex) {
-            commitIndex = minOf(leaderCommit, wal.getLastPosition())
-            // In a real implementation, we would apply committed entries to the state machine
+        if (highWatermark > commitIndex) {
+            val oldCommitIndex = commitIndex
+            // TODO: should we request entries to the leader?
+            commitIndex = minOf(highWatermark, wal.getLastPosition())
+            
+            // Apply committed entries to the key-value store
+            if (commitIndex > oldCommitIndex) {
+                applyCommittedEntries(oldCommitIndex + 1, commitIndex)
+            }
         }
 
         return term >= currentTerm
@@ -299,49 +318,86 @@ class SimpleFollowerNode(
         entries: List<LogEntry>,
         leaderCommit: Long
     ): Boolean {
-        // Update last heartbeat time
-        lastHeartbeatTime = System.currentTimeMillis()
+        TODO()
+    }
 
-        // If the term is less than our current term, reject the request
-        if (term < currentTerm) {
-            return false
-        }
-
-        // If the term is greater than our current term, update our term
-        if (term > currentTerm) {
-            currentTerm = term
-        }
-
-        // Check if we have the previous log entry
-        if (prevLogIndex >= 0) {
-            val prevEntries = wal.read(prevLogIndex, 1)
-            if (prevEntries.isEmpty() || prevEntries[0].term != prevLogTerm) {
-                return false
-            }
-        }
-
-        // Append new entries
+    /**
+     * Apply committed entries to the key-value store.
+     * This is the core of WAL replication - entries are first written to the WAL,
+     * then applied to the state machine (key-value store) once committed.
+     *
+     * @param fromIndex The index to start applying from (inclusive)
+     * @param toIndex The index to apply to (inclusive)
+     */
+    private fun applyCommittedEntries(fromIndex: Long, toIndex: Long) {
+        log.info { "[SimpleFollowerNode] Applying committed entries from $fromIndex to $toIndex" }
+        
+        // Read entries from the WAL
+        val entries = wal.read(fromIndex, (toIndex - fromIndex + 1).toInt())
+        log.info("[DEBUG_LOG] Read ${entries.size} entries from WAL for applying")
+        
         for (entry in entries) {
-            // Check if we already have an entry at this index
-            val existingEntries = wal.read(entry.id, 1)
-            if (existingEntries.isNotEmpty()) {
-                // If the terms don't match, delete this and all following entries
-                if (existingEntries[0].term != entry.term) {
-                    // In a real implementation, we would delete all entries from this index onwards
-                    // For simplicity, we'll just append the new entry, which will overwrite the existing one
+            try {
+                log.info("[DEBUG_LOG] Processing entry for applying: $entry")
+                log.info("[DEBUG_LOG] Entry data size: ${entry.data.size}")
+                
+                // Skip entries with empty data arrays
+                if (entry.data.isEmpty()) {
+                    log.info("[DEBUG_LOG] Skipping entry with empty data: $entry")
+                    continue
                 }
+                
+                // The first byte of the data indicates the command type
+                val commandType = entry.data[0]
+                log.info("[DEBUG_LOG] Entry command type: $commandType")
+                
+                // Skip entries with NONE command type
+                if (commandType == SimpleRequestCommandType.NONE.value) {
+                    log.info("[DEBUG_LOG] Skipping entry with NONE command type: $entry")
+                    continue
+                }
+                
+                when (commandType) {
+                    SimpleRequestCommandType.PUT.value -> {
+                        // Parse PUT command
+                        val payload = entry.data.copyOfRange(1, entry.data.size)
+                        val payloadStr = String(payload, Charsets.UTF_8)
+                        log.info("[DEBUG_LOG] PUT payload: $payloadStr")
+                        
+                        val parts = payloadStr.split(":", limit = 2)
+                        if (parts.size == 2) {
+                            val key = parts[0].toByteArray(Charsets.UTF_8)
+                            val value = parts[1].toByteArray(Charsets.UTF_8)
+                            log.info("[DEBUG_LOG] Putting key=${String(key, Charsets.UTF_8)}, value=${String(value, Charsets.UTF_8)} into store")
+                            
+                            val result = keyValueStore.put(key, value, emptyMap())
+                            log.info("[DEBUG_LOG] PUT result: ${result?.let { String(it, Charsets.UTF_8) }}")
+                            log.info { "[SimpleFollowerNode] Applied PUT command: key=${String(key, Charsets.UTF_8)}, value=${String(value, Charsets.UTF_8)}" }
+                        } else {
+                            log.error("[DEBUG_LOG] Invalid PUT payload format: $payloadStr")
+                        }
+                    }
+                    
+                    SimpleRequestCommandType.DELETE.value -> {
+                        // Parse DELETE command
+                        val payload = entry.data.copyOfRange(1, entry.data.size)
+                        val key = payload
+                        log.info("[DEBUG_LOG] Deleting key=${String(key, Charsets.UTF_8)} from store")
+                        
+                        val result = keyValueStore.delete(key)
+                        log.info("[DEBUG_LOG] DELETE result: ${result?.let { String(it, Charsets.UTF_8) }}")
+                        log.info { "[SimpleFollowerNode] Applied DELETE command: key=${String(key, Charsets.UTF_8)}" }
+                    }
+                    
+                    // Ignore other command types (GET, HEARTBEAT, APPEND_ENTRIES, etc.)
+                    else -> {
+                        log.info("[DEBUG_LOG] Ignoring command type: $commandType")
+                    }
+                }
+            } catch (e: Exception) {
+                log.error("[DEBUG_LOG] Error applying entry $entry: ${e.message}", e)
+                log.error("Error applying entry $entry: ${e.message}", e)
             }
-
-            // Append the entry
-            wal.append(entry)
         }
-
-        // Update commit index
-        if (leaderCommit > commitIndex) {
-            commitIndex = minOf(leaderCommit, wal.getLastPosition())
-            // In a real implementation, we would apply committed entries to the state machine
-        }
-
-        return true
     }
 }

@@ -1,7 +1,6 @@
 package com.distributed.keyvalue.chapter1.store.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
-import com.distributed.keyvalue.chapter1.request.simple.SimpleFollowerRequestCommand
 import com.distributed.keyvalue.chapter1.request.simple.SimpleLeaderRequestCommand
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequest
 import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestAppendEntriesCommand
@@ -153,15 +152,8 @@ class SimpleLeaderNode(
         val future = CompletableFuture<Response>()
 
         try {
-            // Try to parse as SimpleFollowerRequestCommand first
-            try {
-                val followerCommand = SimpleFollowerRequestCommand.from(request.command)
-            } catch (e: Exception) {
-                // Not a follower command, continue to leader command parsing
-            }
-
             // Parse request to SimpleLeaderRequestCommand
-            val command = SimpleLeaderRequestCommand.Companion.from(request.command)
+            val command = SimpleLeaderRequestCommand.from(request.command)
             var result: ByteArray? = null
 
             when (command) {
@@ -312,7 +304,6 @@ class SimpleLeaderNode(
                 )
                 future.complete(response)
             }.exceptionally { e ->
-                // Create an error response
                 val response = SimpleResponse(
                     requestId = request.id,
                     result = null,
@@ -324,7 +315,6 @@ class SimpleLeaderNode(
                 null
             }
         } catch (e: Exception) {
-            // Create an error response
             val response = SimpleResponse(
                 requestId = request.id,
                 result = null,
@@ -344,10 +334,10 @@ class SimpleLeaderNode(
                 // Create a heartbeat request
                 val heartbeatCommand = SimpleRequestHeartbeatCommand(
                     term = currentTerm,
-                    leaderCommit = highWatermark
+                    highWaterMark = highWatermark
                 )
 
-                val payload = "${heartbeatCommand.term}:${heartbeatCommand.leaderCommit}"
+                val payload = "${heartbeatCommand.term}:${heartbeatCommand.highWaterMark}"
                 val payloadBytes = payload.toByteArray(Charsets.UTF_8)
                 val commandBytes = ByteArray(1 + payloadBytes.size)
                 commandBytes[0] = SimpleRequestCommandType.HEARTBEAT.value

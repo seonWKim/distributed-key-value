@@ -1,7 +1,6 @@
 package com.distributed.keyvalue.chapter1.request.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
-import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommandType.Companion.fromByte
 
 /**
  * Simple implementation of the Request interface.
@@ -103,12 +102,15 @@ interface SimpleRequestCommand
  * - APPEND_ENTRIES: Used by the leader to replicate log entries to followers
  */
 enum class SimpleRequestCommandType(val value: Byte) {
-    GET(0),
-    PUT(1),
-    DELETE(2),
-    HEARTBEAT(3),
-    APPEND_ENTRIES(4),
-    REGISTER_FOLLOWER(5);
+    NONE(0),
+    GET(1),
+    PUT(2),
+    DELETE(3),
+    HEARTBEAT(4),
+    APPEND_ENTRIES(5),
+    REGISTER_FOLLOWER(6),
+
+    ;
     
     companion object {
         /**
@@ -203,10 +205,10 @@ data class SimpleRequestDeleteCommand(
  */
 data class SimpleRequestHeartbeatCommand(
     val term: Long,
-    val leaderCommit: Long
+    val highWaterMark: Long
 ) : SimpleFollowerRequestCommand {
     override fun toString(): String {
-        return "SimpleRequestHeartbeatCommand(term=$term, leaderCommit=$leaderCommit)"
+        return "SimpleRequestHeartbeatCommand(term=$term, highWatermark=$highWaterMark)"
     }
 }
 
