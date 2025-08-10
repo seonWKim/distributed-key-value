@@ -35,7 +35,7 @@ class SimpleLeaderNode(
     override val wal: WriteAheadLog,
     followerProxies: List<NodeProxy> = emptyList(),
     private val keyValueStore: KeyValueStore,
-    private val heartbeatIntervalMs: Long = 2000
+    private val heartbeatIntervalMs: Long = 5000
 ) : LeaderNode {
 
     // Use a mutable list for follower proxies

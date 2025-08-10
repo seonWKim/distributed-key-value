@@ -119,10 +119,10 @@ class NodeInitializer {
                                 val responseFuture = node.process(request)
                                 val response = responseFuture.get(5, TimeUnit.SECONDS)
                                 
-                                // Use the new serialization component to serialize the response
                                 val responseBytes = JsonSerializer.serialize(response)
                                 output.writeInt(responseBytes.size)
                                 output.write(responseBytes)
+                                output.flush()
                             }
                         } catch (e: SocketTimeoutException) {
                             log.warn("Socket timeout from ${socket.inetAddress.hostAddress}")

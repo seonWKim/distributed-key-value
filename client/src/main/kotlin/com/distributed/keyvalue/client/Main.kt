@@ -53,7 +53,6 @@ fun main(args: Array<String>) {
                 try {
                     val commandBytes = parseCommand(line)
                     if (commandBytes != null) {
-                        // Send the command to the node
                         output.writeInt(commandBytes.size)
                         output.write(commandBytes)
                         output.flush()
