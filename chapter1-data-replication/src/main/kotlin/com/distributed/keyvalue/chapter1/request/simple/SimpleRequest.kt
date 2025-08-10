@@ -1,6 +1,7 @@
 package com.distributed.keyvalue.chapter1.request.simple
 
 import com.distributed.keyvalue.chapter1.request.Request
+import com.distributed.keyvalue.chapter1.request.simple.SimpleRequestCommandType.*
 
 /**
  * Simple implementation of the Request interface.
@@ -95,21 +96,25 @@ interface SimpleRequestCommand
  * Enum representing the different types of commands that can be sent in a SimpleRequest.
  * Each enum value has a corresponding byte value that is used in the binary protocol.
  *
- * - GET: Used to retrieve a value by key
- * - PUT: Used to store a key-value pair
- * - DELETE: Used to remove a key-value pair
- * - HEARTBEAT: Used by the leader to signal liveness to followers
- * - APPEND_ENTRIES: Used by the leader to replicate log entries to followers
+ * - [GET]: Used to retrieve a value by key
+ * - [PUT]: Used to store a key-value pair
+ * - [DELETE]: Used to remove a key-value pair
+ * - [HEARTBEAT]: Used by the leader to signal liveness to followers
+ * - [LOG_APPENDED]: Used by the leader to signal followers that new logs were appended
+ * - [REQUEST_LOG]: Used by the follower to request logs from the leader
+ * - [REQUEST_LOG_RESPONSE]: Used by the leader to respond to follower's [REQUEST_LOG] request
+ * - [REGISTER_FOLLOWER]: Used by the follower to register itself to the leader
  */
 enum class SimpleRequestCommandType(val value: Byte) {
     NONE(0),
-    GET(1),
-    PUT(2),
-    DELETE(3),
-    HEARTBEAT(4),
-    APPEND_ENTRIES(5),
-    REGISTER_FOLLOWER(6),
-
+    GET(10),
+    PUT(20),
+    DELETE(30),
+    HEARTBEAT(40),
+    LOG_APPENDED(50),
+    REQUEST_LOG(60),
+    REQUEST_LOG_RESPONSE(70),
+    REGISTER_FOLLOWER(80),
     ;
     
     companion object {
@@ -239,6 +244,21 @@ data class SimpleRequestRegisterFollower(
 }
 
 /**
+ * Command for responding to a follower's log request.
+ */
+data class SimpleRequestLogResponseCommand(
+    val term: Long,
+    val prevLogIndex: Long,
+    val prevLogTerm: Long,
+    val entriesJson: String,
+    val leaderCommit: Long
+) : SimpleLeaderRequestCommand {
+    override fun toString(): String {
+        return "SimpleRequestLogResponseCommand(term=$term, prevLogIndex=$prevLogIndex, prevLogTerm=$prevLogTerm, entriesJson=$entriesJson, leaderCommit=$leaderCommit)"
+    }
+}
+
+/**
  * Commands that are processed by the leader node.
  */
 sealed interface SimpleLeaderRequestCommand : SimpleRequestCommand {
@@ -248,23 +268,23 @@ sealed interface SimpleLeaderRequestCommand : SimpleRequestCommand {
 
             // Convert the first byte to a command type
             return when (val commandType = SimpleRequestCommandType.fromByte(command[0])) {
-                SimpleRequestCommandType.GET -> {
+                GET -> {
                     val key = command.copyOfRange(1, command.size)
                     SimpleRequestGetCommand(key)
                 }
 
-                SimpleRequestCommandType.PUT -> {
+                PUT -> {
                     val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
                     val (key, value) = payload.split(":", limit = 2)
                     SimpleRequestPutCommand(key.toByteArray(Charsets.UTF_8), value.toByteArray(Charsets.UTF_8))
                 }
 
-                SimpleRequestCommandType.DELETE -> {
+                DELETE -> {
                     val key = command.copyOfRange(1, command.size)
                     SimpleRequestDeleteCommand(key)
                 }
 
-                SimpleRequestCommandType.REGISTER_FOLLOWER -> {
+                REGISTER_FOLLOWER -> {
                     val followerId = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
                     SimpleRequestRegisterFollower(followerId)
                 }
@@ -285,39 +305,28 @@ sealed interface SimpleFollowerRequestCommand : SimpleRequestCommand {
 
             // Convert the first byte to a command type
             return when (val commandType = SimpleRequestCommandType.fromByte(command[0])) {
-                SimpleRequestCommandType.GET -> {
+                GET -> {
                     val key = command.copyOfRange(1, command.size)
                     SimpleRequestGetCommand(key)
                 }
 
-                SimpleRequestCommandType.PUT -> {
+                PUT -> {
                     val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
                     val (key, value) = payload.split(":", limit = 2)
                     SimpleRequestPutCommand(key.toByteArray(Charsets.UTF_8), value.toByteArray(Charsets.UTF_8))
                 }
 
-                SimpleRequestCommandType.DELETE -> {
+                DELETE -> {
                     val key = command.copyOfRange(1, command.size)
                     SimpleRequestDeleteCommand(key)
                 }
 
-                SimpleRequestCommandType.HEARTBEAT -> {
+                HEARTBEAT -> {
                     val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
                     val parts = payload.split(":", limit = 2)
                     val term = parts[0].toLong()
                     val leaderCommit = parts[1].toLong()
                     SimpleRequestHeartbeatCommand(term, leaderCommit)
-                }
-
-                SimpleRequestCommandType.APPEND_ENTRIES -> {
-                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
-                    val parts = payload.split(":", limit = 5)
-                    val term = parts[0].toLong()
-                    val prevLogIndex = parts[1].toLong()
-                    val prevLogTerm = parts[2].toLong()
-                    val leaderCommit = parts[3].toLong()
-                    val entriesJson = parts[4]
-                    SimpleRequestAppendEntriesCommand(term, prevLogIndex, prevLogTerm, entriesJson, leaderCommit)
                 }
 
                 else -> throw IllegalArgumentException("Invalid command type for follower: $commandType")
