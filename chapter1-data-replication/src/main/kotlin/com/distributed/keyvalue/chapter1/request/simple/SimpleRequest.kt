@@ -233,6 +233,30 @@ data class SimpleRequestAppendEntriesCommand(
 }
 
 /**
+ * Command for requesting logs from the leader.
+ */
+data class SimpleRequestRequestLogCommand(
+    val term: Long,
+    val lastLogIndex: Long
+) : SimpleFollowerRequestCommand {
+    override fun toString(): String {
+        return "SimpleRequestRequestLogCommand(term=$term, lastLogIndex=$lastLogIndex)"
+    }
+}
+
+/**
+ * Command for notifying followers that new logs have been appended.
+ */
+data class SimpleRequestLogAppendedNotificationCommand(
+    val term: Long,
+    val logIndex: Long
+) : SimpleFollowerRequestCommand {
+    override fun toString(): String {
+        return "SimpleRequestLogAppendedNotificationCommand(term=$term, logIndex=$logIndex)"
+    }
+}
+
+/**
  * Command for registering a follower with the leader.
  */
 data class SimpleRequestRegisterFollower(
@@ -288,6 +312,17 @@ sealed interface SimpleLeaderRequestCommand : SimpleRequestCommand {
                     val followerId = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
                     SimpleRequestRegisterFollower(followerId)
                 }
+                
+                REQUEST_LOG_RESPONSE -> {
+                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    val parts = payload.split(":", limit = 5)
+                    val term = parts[0].toLong()
+                    val prevLogIndex = parts[1].toLong()
+                    val prevLogTerm = parts[2].toLong()
+                    val leaderCommit = parts[3].toLong()
+                    val entriesJson = parts[4]
+                    SimpleRequestLogResponseCommand(term, prevLogIndex, prevLogTerm, entriesJson, leaderCommit)
+                }
 
                 else -> throw IllegalArgumentException("Invalid command type for leader: $commandType")
             }
@@ -327,6 +362,22 @@ sealed interface SimpleFollowerRequestCommand : SimpleRequestCommand {
                     val term = parts[0].toLong()
                     val leaderCommit = parts[1].toLong()
                     SimpleRequestHeartbeatCommand(term, leaderCommit)
+                }
+                
+                REQUEST_LOG -> {
+                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    val parts = payload.split(":", limit = 2)
+                    val term = parts[0].toLong()
+                    val lastLogIndex = parts[1].toLong()
+                    SimpleRequestRequestLogCommand(term, lastLogIndex)
+                }
+                
+                LOG_APPENDED -> {
+                    val payload = command.copyOfRange(1, command.size).toString(Charsets.UTF_8)
+                    val parts = payload.split(":", limit = 2)
+                    val term = parts[0].toLong()
+                    val logIndex = parts[1].toLong()
+                    SimpleRequestLogAppendedNotificationCommand(term, logIndex)
                 }
 
                 else -> throw IllegalArgumentException("Invalid command type for follower: $commandType")
