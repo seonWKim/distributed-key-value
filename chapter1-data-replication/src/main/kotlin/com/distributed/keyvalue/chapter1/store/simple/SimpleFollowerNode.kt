@@ -186,9 +186,7 @@ class SimpleFollowerNode(
 
         try {
             try {
-                val command = SimpleFollowerRequestCommand.from(request.command)
-
-                when (command) {
+                when (val command = SimpleFollowerRequestCommand.from(request.command)) {
                     // Handle heartbeat requests from the leader
                     is SimpleRequestHeartbeatCommand -> {
                         log.info { "[SimpleFollowerNode] Handling heartbeat command: $command" }
