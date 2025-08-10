@@ -18,11 +18,6 @@ import kotlin.test.*
 
 /**
  * Tests for heartbeat functionality in the distributed key-value store.
- * 
- * These tests verify that:
- * 1. The leader sends heartbeats at regular intervals
- * 2. Followers process heartbeats correctly
- * 3. Followers transition to CANDIDATE state if no heartbeats are received within the election timeout
  */
 class HeartbeatTest {
 
@@ -118,7 +113,7 @@ class HeartbeatTest {
         TimeUnit.SECONDS.sleep(1)
         
         // Manually register the follower with the leader
-        if (leaderNode is SimpleLeaderNode && followerNode is SimpleFollowerNode) {
+        if (leaderNode is SimpleLeaderNode) {
             // Create a proxy for the follower
             val followerProxy = SimpleNodeProxy(
                 host = "localhost",
